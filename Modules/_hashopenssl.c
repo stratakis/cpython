@@ -1182,5 +1182,10 @@ PyInit__hashlib(void)
     Py_INCREF((PyObject *)&EVPtype);
     PyModule_AddObject(m, "HASH", (PyObject *)&EVPtype);
 
+    if (getenv("OPENSSL_FIPS")) {
+        if (!FIPS_mode_set(1)) {
+            return _setException(PyExc_ValueError);
+        }
+    }
     return m;
 }
