@@ -2284,5 +2284,10 @@ PyInit__hashlib(void)
         return NULL;
     }
 
+    if (getenv("OPENSSL_FIPS")) {
+        if (!FIPS_mode_set(1)) {
+            return _setException(PyExc_ValueError);
+        }
+    }
     return m;
 }
