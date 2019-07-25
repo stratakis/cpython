@@ -23,6 +23,7 @@
 #include "Python.h"
 #include "hashlib.h"
 #include "pystrhex.h"
+#include "_hashopenssl.h"
 
 /* EVP is the preferred interface to hashing in OpenSSL */
 #include <openssl/evp.h>
@@ -30,9 +31,6 @@
 #include <openssl/crypto.h>
 /* We use the object interface to discover what hashes OpenSSL supports. */
 #include <openssl/objects.h>
-#include <openssl/err.h>
-
-#include <openssl/crypto.h>       // FIPS_mode()
 
 #ifndef OPENSSL_THREADS
 #  error "OPENSSL_THREADS is not defined, Python requires thread-safe OpenSSL"
@@ -125,37 +123,6 @@ class _hashlib.HMAC "HMACobject *" "((_hashlibstate *)PyModule_GetState(module))
 [clinic start generated code]*/
 /*[clinic end generated code: output=da39a3ee5e6b4b0d input=7df1bcf6f75cb8ef]*/
 
-
-/* LCOV_EXCL_START */
-static PyObject *
-_setException(PyObject *exc)
-{
-    unsigned long errcode;
-    const char *lib, *func, *reason;
-
-    errcode = ERR_peek_last_error();
-    if (!errcode) {
-        PyErr_SetString(exc, "unknown reasons");
-        return NULL;
-    }
-    ERR_clear_error();
-
-    lib = ERR_lib_error_string(errcode);
-    func = ERR_func_error_string(errcode);
-    reason = ERR_reason_error_string(errcode);
-
-    if (lib && func) {
-        PyErr_Format(exc, "[%s: %s] %s", lib, func, reason);
-    }
-    else if (lib) {
-        PyErr_Format(exc, "[%s] %s", lib, reason);
-    }
-    else {
-        PyErr_SetString(exc, reason);
-    }
-    return NULL;
-}
-/* LCOV_EXCL_STOP */
 
 /* {Py_tp_new, NULL} doesn't block __new__ */
 static PyObject *
