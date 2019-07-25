@@ -354,6 +354,11 @@ class HashLibTestCase(unittest.TestCase):
         # 2 is for hashlib.name(...) and hashlib.new(name, ...)
         self.assertGreaterEqual(len(constructors), 2)
         for hash_object_constructor in constructors:
+            if (
+                kwargs
+                and hash_object_constructor.__name__.startswith('openssl_')
+            ):
+                return
             m = hash_object_constructor(data, **kwargs)
             computed = m.hexdigest() if not shake else m.hexdigest(length)
             self.assertEqual(
