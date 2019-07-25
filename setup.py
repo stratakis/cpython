@@ -1688,7 +1688,6 @@ class PyBuildExt(build_ext):
     def detect_modules(self):
         self.configure_compiler()
         self.init_inc_lib_dirs()
-
         self.detect_simple_extensions()
         if TEST_EXTENSIONS:
             self.detect_test_extensions()
@@ -2187,7 +2186,7 @@ class PyBuildExt(build_ext):
                            sources=sources,
                            depends=depends))
 
-    def detect_openssl_hashlib(self):
+    def detect_openssl_args(self):
         # Detect SSL support for the socket module (via _ssl)
         config_vars = sysconfig.get_config_vars()
 
@@ -2208,7 +2207,7 @@ class PyBuildExt(build_ext):
         if not openssl_libs:
             # libssl and libcrypto not found
             self.missing.extend(['_ssl', '_hashlib'])
-            return None, None
+            raise ValueError('Cannot build for RHEL without OpenSSL')
 
         # Find OpenSSL includes
         ssl_incs = find_file(
@@ -2216,7 +2215,7 @@ class PyBuildExt(build_ext):
         )
         if ssl_incs is None:
             self.missing.extend(['_ssl', '_hashlib'])
-            return None, None
+            raise ValueError('Cannot build for RHEL without OpenSSL')
 
         # OpenSSL 1.0.2 uses Kerberos for KRB5 ciphers
         krb5_h = find_file(
@@ -2226,12 +2225,23 @@ class PyBuildExt(build_ext):
         if krb5_h:
             ssl_incs.extend(krb5_h)
 
+
+        ssl_args = {
+            'include_dirs': openssl_includes,
+            'library_dirs': openssl_libdirs,
+            'libraries': ['ssl', 'crypto'],
+        }
+
+        return ssl_args
+
+    def detect_openssl_hashlib(self):
+
+        config_vars = sysconfig.get_config_vars()
+
         if config_vars.get("HAVE_X509_VERIFY_PARAM_SET1_HOST"):
             self.add(Extension(
                 '_ssl', ['_ssl.c'],
-                include_dirs=openssl_includes,
-                library_dirs=openssl_libdirs,
-                libraries=openssl_libs,
+                **self.detect_openssl_args(),
                 depends=['socketmodule.h', '_ssl/debughelpers.c'])
             )
         else:
@@ -2239,22 +2249,12 @@ class PyBuildExt(build_ext):
 
         self.add(Extension('_hashlib', ['_hashopenssl.c'],
                            depends=['hashlib.h'],
-                           include_dirs=openssl_includes,
-                           library_dirs=openssl_libdirs,
-                           libraries=openssl_libs))
+                           **self.detect_openssl_args()) )
 
     def detect_hash_builtins(self):
-        # We always compile these even when OpenSSL is available (issue #14693).
-        # It's harmless and the object code is tiny (40-50 KiB per module,
-        # only loaded when actually used).
-        self.add(Extension('_sha256', ['sha256module.c'],
-                           depends=['hashlib.h']))
-        self.add(Extension('_sha512', ['sha512module.c'],
-                           depends=['hashlib.h']))
-        self.add(Extension('_md5', ['md5module.c'],
-                           depends=['hashlib.h']))
-        self.add(Extension('_sha1', ['sha1module.c'],
-                           depends=['hashlib.h']))
+        # RHEL: Always force OpenSSL for md5, sha1, sha256, sha512;
+        # don't build Python's implementations.
+        # sha3 and blake2 have extra functionality, so do build those:
 
         blake2_deps = glob(os.path.join(self.srcdir,
                                         'Modules/_blake2/impl/*'))
@@ -2264,14 +2264,16 @@ class PyBuildExt(build_ext):
                            ['_blake2/blake2module.c',
                             '_blake2/blake2b_impl.c',
                             '_blake2/blake2s_impl.c'],
-                           depends=blake2_deps))
+                            **self.detect_openssl_args(),
+                            depends=blake2_deps))
 
         sha3_deps = glob(os.path.join(self.srcdir,
                                       'Modules/_sha3/kcp/*'))
         sha3_deps.append('hashlib.h')
         self.add(Extension('_sha3',
                            ['_sha3/sha3module.c'],
-                           depends=sha3_deps))
+                           **self.detect_openssl_args(),
+                           depends=sha3_deps + ['hashlib.h']))
 
     def detect_nis(self):
         if MS_WINDOWS or CYGWIN or HOST_PLATFORM == 'qnx6':
