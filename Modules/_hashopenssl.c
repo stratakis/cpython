@@ -26,6 +26,9 @@
 #include <openssl/objects.h>
 #include "openssl/err.h"
 
+/* Expose FIPS_mode */
+#include <openssl/crypto.h>
+
 #ifndef OPENSSL_THREADS
 #  error "OPENSSL_THREADS is not defined, Python requires thread-safe OpenSSL"
 #endif
@@ -1072,12 +1075,46 @@ generate_hash_name_list(void)
     return state.set;
 }
 
+/*[clinic input]
+_hashlib.get_fips_mode
+
+Determine the OpenSSL FIPS mode of operation.
+
+Effectively any non-zero return value indicates FIPS mode;
+values other than 1 may have additional significance.
+
+See OpenSSL documentation for the FIPS_mode() function for details.
+[clinic start generated code]*/
+
+static PyObject *
+_hashlib_get_fips_mode_impl(PyObject *module)
+/*[clinic end generated code: output=ad8a7793310d3f98 input=f42a2135df2a5e11]*/
+
+{
+    int result = FIPS_mode();
+    if (result == 0) {
+        // "If the library was built without support of the FIPS Object Module,
+        // then the function will return 0 with an error code of
+        // CRYPTO_R_FIPS_MODE_NOT_SUPPORTED (0x0f06d065)."
+        // But 0 is also a valid result value.
+
+        unsigned long errcode = ERR_peek_last_error();
+        if (errcode) {
+            _setException(PyExc_ValueError);
+            return NULL;
+        }
+    }
+    return PyLong_FromLong(result);
+}
+
+
 /* List of functions exported by this module */
 
 static struct PyMethodDef EVP_functions[] = {
     EVP_NEW_METHODDEF
     PBKDF2_HMAC_METHODDEF
     _HASHLIB_SCRYPT_METHODDEF
+    _HASHLIB_GET_FIPS_MODE_METHODDEF
     _HASHLIB_HMAC_DIGEST_METHODDEF
     _HASHLIB_OPENSSL_MD5_METHODDEF
     _HASHLIB_OPENSSL_SHA1_METHODDEF
