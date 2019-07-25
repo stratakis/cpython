@@ -35,14 +35,15 @@ else:
         m.strip() for m in builtin_hashes.strip('"').lower().split(",")
     }
 
-# hashlib with and without OpenSSL backend for PBKDF2
-# only import builtin_hashlib when all builtin hashes are available.
-# Otherwise import prints noise on stderr
+# RHEL: `_hashlib` is always importable and `hashlib` can't be imported
+# without it.
 openssl_hashlib = import_fresh_module('hashlib', fresh=['_hashlib'])
-if builtin_hashes == default_builtin_hashes:
+try:
     builtin_hashlib = import_fresh_module('hashlib', blocked=['_hashlib'])
-else:
+except ImportError:
     builtin_hashlib = None
+else:
+    raise AssertionError('hashlib is importablee without _hashlib')
 
 try:
     from _hashlib import HASH, HASHXOF, openssl_md_meth_names, get_fips_mode
@@ -116,6 +117,12 @@ class HashLibTestCase(unittest.TestCase):
         except ModuleNotFoundError as error:
             if self._warn_on_extension_import and module_name in builtin_hashes:
                 warnings.warn('Did a C extension fail to compile? %s' % error)
+        except ImportError:
+            if get_fips_mode() and module_name == '_blake2':
+                # blake2b & blake2s disabled under FIPS
+                return None
+            else:
+                raise
         return None
 
     def __init__(self, *args, **kwargs):
