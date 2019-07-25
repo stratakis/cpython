@@ -8492,7 +8492,10 @@ PY_HACL_CREATE_MODULE([MD5], [_md5], [test "$with_builtin_md5" = yes])
 PY_HACL_CREATE_MODULE([SHA1], [_sha1], [test "$with_builtin_sha1" = yes])
 PY_HACL_CREATE_MODULE([SHA2], [_sha2], [test "$with_builtin_sha2" = yes])
 PY_HACL_CREATE_MODULE([SHA3], [_sha3], [test "$with_builtin_sha3" = yes])
-PY_HACL_CREATE_MODULE([BLAKE2], [_blake2], [test "$with_builtin_blake2" = yes])
+dnl RHEL: _blake2 needs OpenSSL for FIPS mode detection
+PY_STDLIB_MOD([_blake2], [test "$with_builtin_blake2" = yes], [],
+  [$LIBHACL_CFLAGS $OPENSSL_INCLUDES],
+  [\$(LIBHACL_BLAKE2_LIB_$LIBHACL_LDEPS_LIBTYPE) $OPENSSL_LDFLAGS $OPENSSL_LDFLAGS_RPATH $LIBCRYPTO_LIBS])
 
 dnl HMAC builtin library does not need OpenSSL for now. In the future
 dnl we might want to rely on OpenSSL EVP/NID interface or implement

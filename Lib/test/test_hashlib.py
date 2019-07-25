@@ -38,8 +38,15 @@ else:
     builtin_hash_names = builtin_hashes.strip('"').lower().split(",")
     builtin_hashes = set(map(str.strip, builtin_hash_names))
 
-# Public 'hashlib' module with OpenSSL backend for PBKDF2.
+# RHEL: `_hashlib` is always importable and `hashlib` can't be imported
+# without it.
 openssl_hashlib = import_fresh_module('hashlib', fresh=['_hashlib'])
+try:
+    builtin_hashlib = import_fresh_module('hashlib', blocked=['_hashlib'])
+except ImportError:
+    builtin_hashlib = None
+else:
+    raise AssertionError('hashlib is importable without _hashlib')
 
 try:
     import _hashlib
@@ -149,6 +156,12 @@ class HashLibTestCase(unittest.TestCase):
                     error,
                     exc_info=error,
                 )
+        except ImportError:
+            if get_fips_mode() and module_name == '_blake2':
+                # blake2b & blake2s disabled under FIPS
+                return None
+            else:
+                raise
         return None
 
     def __init__(self, *args, **kwargs):

@@ -16,6 +16,9 @@
 
 #include "Python.h"
 #include "hashlib.h"
+// RHEL: use OpenSSL to turn off this module under FIPS mode
+// EVP_default_properties_is_fips_enabled() on OpenSSL 3.0+
+#include <openssl/evp.h>
 #include "pycore_moduleobject.h"
 #include "pycore_object.h"        // _PyObject_VisitType()
 #include "pycore_strhex.h"        // _Py_strhex()
@@ -299,9 +302,25 @@ static struct PyModuleDef blake2_module = {
     .m_free = _blake2_free,
 };
 
+// RHEL: FIPS mode detection (OpenSSL 3.0+ only)
+static int
+blake2_fips_error(PyObject *exc)
+{
+    if (EVP_default_properties_is_fips_enabled(NULL)) {
+        PyErr_SetString(exc, "blake2 is not available in FIPS mode");
+        return 1;
+    }
+    return 0;
+}
+
+#define FAIL_RETURN_IN_FIPS_MODE(exc) do { \
+    if (blake2_fips_error(exc)) return NULL; \
+} while (0)
+
 PyMODINIT_FUNC
 PyInit__blake2(void)
 {
+    FAIL_RETURN_IN_FIPS_MODE(PyExc_ImportError);
     return PyModuleDef_Init(&blake2_module);
 }
 
@@ -570,6 +589,8 @@ py_blake2_new(PyTypeObject *type, PyObject *data, int digest_size,
               int inner_size, int last_node, int usedforsecurity)
 {
     Blake2Object *self = NULL;
+
+    FAIL_RETURN_IN_FIPS_MODE(PyExc_ValueError);
 
     self = new_Blake2Object(type);
     if (self == NULL) {
