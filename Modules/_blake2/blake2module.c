@@ -13,6 +13,7 @@
 #endif
 
 #include "Python.h"
+#include "../hashlib.h"
 #include "blake2module.h"
 
 extern PyType_Spec blake2b_type_spec;
@@ -77,6 +78,9 @@ _blake2_free(void *module)
 static int
 blake2_exec(PyObject *m)
 {
+
+    FAIL_RETURN_IN_FIPS_MODE(PyExc_ImportError, "blake2");
+
     Blake2State* st = blake2_get_state(m);
 
     st->blake2b_type = (PyTypeObject *)PyType_FromModuleAndSpec(
