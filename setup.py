@@ -2371,6 +2371,10 @@ class PyBuildExt(build_ext):
                            depends=['hashlib.h'],
                            **self.detect_openssl_args()) )
 
+        self.add(Extension('_hmacopenssl', ['_hmacopenssl.c'],
+                                depends = ['hashlib.h'],
+                                **self.detect_openssl_args()) )
+
     def detect_hash_builtins(self):
         # By default we always compile these even when OpenSSL is available
         # (issue #14693). It's harmless and the object code is tiny
