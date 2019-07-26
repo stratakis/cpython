@@ -13,6 +13,8 @@ except ImportError:
 else:
     _openssl_md_meths = frozenset(_hashopenssl.openssl_md_meth_names)
 import hashlib as _hashlib
+import _hashlib as _hashlibopenssl
+import _hmacopenssl
 
 trans_5C = bytes((x ^ 0x5C) for x in range(256))
 trans_36 = bytes((x ^ 0x36) for x in range(256))
@@ -43,6 +45,11 @@ class HMAC:
                    msg argument.  Passing it as a keyword argument is
                    recommended, though not required for legacy API reasons.
         """
+        if _hashlib.get_fips_mode():
+            raise ValueError(
+                'hmac.HMAC is not available in FIPS mode. '
+                + 'Use hmac.new().'
+            )
 
         if not isinstance(key, (bytes, bytearray)):
             raise TypeError("key: expected bytes or bytearray, but got %r" % type(key).__name__)
@@ -93,6 +100,8 @@ class HMAC:
 
     def update(self, msg):
         """Feed data from msg into this hashing object."""
+        if _hashlib.get_fips_mode():
+            raise ValueError('hmac.HMAC is not available in FIPS mode')
         self.inner.update(msg)
 
     def copy(self):
@@ -133,6 +142,18 @@ class HMAC:
         h = self._current()
         return h.hexdigest()
 
+def _get_openssl_name(digestmod):
+    if isinstance(digestmod, str):
+        return digestmod.lower()
+    elif callable(digestmod):
+        digestmod = digestmod(b'')
+
+    if not isinstance(digestmod, _hashlibopenssl.HASH):
+        raise TypeError(
+            'Only OpenSSL hashlib hashes are accepted in FIPS mode.')
+
+    return digestmod.name.lower().replace('_', '-')
+
 def new(key, msg=None, digestmod=''):
     """Create a new hashing object and return it.
 
@@ -150,7 +171,16 @@ def new(key, msg=None, digestmod=''):
     method, and can ask for the hash value at any time by calling its digest()
     or hexdigest() methods.
     """
-    return HMAC(key, msg, digestmod)
+    if _hashlib.get_fips_mode():
+        if digestmod is None:
+            digestmod = 'md5'
+        name = _get_openssl_name(digestmod)
+        result = _hmacopenssl.new(key, digestmod=name)
+        if msg:
+            result.update(msg)
+        return result
+    else:
+        return HMAC(key, msg, digestmod)
 
 
 def digest(key, msg, digest):
