@@ -27,6 +27,7 @@ from test.support.import_helper import import_fresh_module
 from test.support import requires_resource
 from test.support import threading_helper
 from http.client import HTTPException
+from functools import partial
 
 
 default_builtin_hashes = {'md5', 'sha1', 'sha2', 'sha3', 'blake2'}
@@ -61,6 +62,10 @@ if not get_fips_mode:
     def get_fips_mode():
         return 0
 
+if get_fips_mode():
+    FIPS_DISABLED = {'md5'}
+else:
+    FIPS_DISABLED = set()
 
 try:
     import _md5
@@ -122,6 +127,14 @@ def read_vectors(hash_name):
             parts = line.split(',')
             parts[0] = bytes.fromhex(parts[0])
             yield parts
+
+def _get_constructor_name(constructor):
+    if isinstance(constructor, partial):
+        constructor = constructor.func
+    return getattr(constructor, '__name__', repr(constructor))
+
+def _is_blake2_constructor(constructor):
+    return _get_constructor_name(constructor).startswith('openssl_blake2')
 
 
 DEPRECATED_STRING_PARAMETER = re.escape(
@@ -311,7 +324,7 @@ class HashLibTestCase(unittest.TestCase):
     @unittest.skipIf(get_fips_mode(), "skip in FIPS mode")
     def test_clinic_signature(self):
         for constructor in self.hash_constructors:
-            with self.subTest(constructor.__name__):
+            with self.subTest(_get_constructor_name(constructor)):
                 constructor(b'')
                 constructor(data=b'')
                 with self.assertWarnsRegex(DeprecationWarning,
@@ -376,7 +389,7 @@ class HashLibTestCase(unittest.TestCase):
         ]:
             for constructor in self.hash_constructors:
                 digest_name = constructor(b'').name
-                with self.subTest(constructor.__name__, args=args, kwds=kwds):
+                with self.subTest(_get_constructor_name(constructor), args=args, kwds=kwds):
                     with self.assertRaisesRegex(TypeError, errmsg):
                         constructor(*args, **kwds)
                 with self.subTest(digest_name, args=args, kwds=kwds):
@@ -512,6 +525,8 @@ class HashLibTestCase(unittest.TestCase):
                 self.assertIn(h.name, self.supported_hash_names)
             else:
                 self.assertNotIn(h.name, self.supported_hash_names)
+            if not h.name.startswith('blake2') and h.name not in FIPS_DISABLED:
+                self.assertEqual(h.name, hashlib.new(h.name).name)
             self.assertEqual(
                 h.name,
                 hashlib.new(h.name, usedforsecurity=False).name
@@ -588,9 +603,11 @@ class HashLibTestCase(unittest.TestCase):
         for hash_object_constructor in constructors:
 
             # OpenSSL's blake2b & blake2s don't support `key`
-            _name = hash_object_constructor.__name__
-            if 'key' in kwargs and _name.startswith('openssl_blake2'):
-                return
+            if (
+                'key' in kwargs
+                and _is_blake2_constructor(hash_object_constructor)
+            ):
+                continue
 
             m = hash_object_constructor(data, **kwargs)
             computed = m.hexdigest() if not shake else m.hexdigest(length)
@@ -1262,6 +1279,17 @@ class HashLibTestCase(unittest.TestCase):
                 with self.subTest(hash_type=hash_type):
                     with self.assertRaisesRegex(TypeError, "immutable type"):
                         hash_type.value = False
+
+    @unittest.skipUnless(get_fips_mode(), 'Needs FIPS mode.')
+    def test_usedforsecurity_repeat(self):
+        # Repeat 3 times to catch state leakage: the successful
+        # usedforsecurity=False call must not affect subsequent calls.
+        for i in range(3):
+            for cons in hashlib.md5, partial(hashlib.new, 'md5'):
+                self.assertRaises(ValueError, cons)
+                self.assertRaises(ValueError, partial(cons, usedforsecurity=True))
+                self.assertEqual(cons(usedforsecurity=False).hexdigest(),
+                                'd41d8cd98f00b204e9800998ecf8427e')
 
 
 class KDFTests(unittest.TestCase):
