@@ -44,6 +44,12 @@ if builtin_hashes == default_builtin_hashes:
 else:
     builtin_hashlib = None
 
+
+if hashlib.get_fips_mode():
+    FIPS_DISABLED = {'md5', 'MD5', 'blake2b', 'blake2s'}
+else:
+    FIPS_DISABLED = set()
+
 try:
     from _hashlib import HASH, HASHXOF, openssl_md_meth_names
 except ImportError:
@@ -106,6 +112,7 @@ class HashLibTestCase(unittest.TestCase):
     # Issue #14693: fallback modules are always compiled under POSIX
     _warn_on_extension_import = os.name == 'posix' or COMPILED_WITH_PYDEBUG
 
+
     def _conditional_import_module(self, module_name):
         """Import a module and return a reference to it or None on failure."""
         try:
@@ -113,6 +120,9 @@ class HashLibTestCase(unittest.TestCase):
         except ModuleNotFoundError as error:
             if self._warn_on_extension_import and module_name in builtin_hashes:
                 warnings.warn('Did a C extension fail to compile? %s' % error)
+        except ImportError as error:
+            if not hashlib.get_fips_mode():
+                raise
         return None
 
     def __init__(self, *args, **kwargs):
@@ -211,7 +221,7 @@ class HashLibTestCase(unittest.TestCase):
                 c.hexdigest()
 
     def test_algorithms_guaranteed(self):
-        self.assertEqual(hashlib.algorithms_guaranteed,
+        self.assertEqual(hashlib.algorithms_guaranteed - FIPS_DISABLED,
             set(_algo for _algo in self.supported_hash_names
                   if _algo.islower()))
 
@@ -250,6 +260,12 @@ class HashLibTestCase(unittest.TestCase):
     def test_new_upper_to_lower(self):
         self.assertEqual(hashlib.new("SHA256").name, "sha256")
 
+    @unittest.skipUnless(hashlib.get_fips_mode(), "Builtin constructor only unavailable in FIPS mode")
+    def test_get_builtin_constructor_fips(self):
+        with self.assertRaises(AttributeError):
+            hashlib.__get_builtin_constructor
+
+    @unittest.skipIf(hashlib.get_fips_mode(), "No builtin constructors in FIPS mode")
     def test_get_builtin_constructor(self):
         get_builtin_constructor = getattr(hashlib,
                                           '__get_builtin_constructor')
@@ -380,7 +396,8 @@ class HashLibTestCase(unittest.TestCase):
             self.assertRaises(TypeError, hash_object_constructor, 'spam')
 
     def test_no_unicode(self):
-        self.check_no_unicode('md5')
+        if not hashlib.get_fips_mode():
+            self.check_no_unicode('md5')
         self.check_no_unicode('sha1')
         self.check_no_unicode('sha224')
         self.check_no_unicode('sha256')
@@ -421,7 +438,8 @@ class HashLibTestCase(unittest.TestCase):
             self.assertIn(name.split("_")[0], repr(m))
 
     def test_blocksize_name(self):
-        self.check_blocksize_name('md5', 64, 16)
+        if not hashlib.get_fips_mode():
+            self.check_blocksize_name('md5', 64, 16)
         self.check_blocksize_name('sha1', 64, 20)
         self.check_blocksize_name('sha224', 64, 28)
         self.check_blocksize_name('sha256', 64, 32)
@@ -463,18 +481,21 @@ class HashLibTestCase(unittest.TestCase):
         self.check_blocksize_name('blake2b', 128, 64)
         self.check_blocksize_name('blake2s', 64, 32)
 
+    @unittest.skipIf(hashlib.get_fips_mode(), "md5 unacceptable in FIPS mode")
     def test_case_md5_0(self):
         self.check(
             'md5', b'', 'd41d8cd98f00b204e9800998ecf8427e',
             usedforsecurity=False
         )
 
+    @unittest.skipIf(hashlib.get_fips_mode(), "md5 unacceptable in FIPS mode")
     def test_case_md5_1(self):
         self.check(
             'md5', b'abc', '900150983cd24fb0d6963f7d28e17f72',
             usedforsecurity=False
         )
 
+    @unittest.skipIf(hashlib.get_fips_mode(), "md5 unacceptable in FIPS mode")
     def test_case_md5_2(self):
         self.check(
             'md5',
