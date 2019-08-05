@@ -47,7 +47,7 @@ class HMAC:
         """
         if _hashlib.get_fips_mode():
             raise ValueError(
-                'hmac.HMAC is not available in FIPS mode. '
+                'This class is not available in FIPS mode. '
                 + 'Use hmac.new().'
             )
 
