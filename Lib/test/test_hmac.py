@@ -288,6 +288,7 @@ class TestVectorsTestCase(unittest.TestCase):
     def test_sha512_rfc4231(self):
         self._rfc4231_test_cases(hashlib.sha512, 'sha512', 64, 128)
 
+    @unittest.skipIf(hashlib.get_fips_mode(), 'MockCrazyHash unacceptable in FIPS mode.')
     @requires_hashdigest('sha256')
     def test_legacy_block_size_warnings(self):
         class MockCrazyHash(object):
@@ -334,6 +335,14 @@ class ConstructorTestCase(unittest.TestCase):
         # Standard constructor call.
         try:
             hmac.HMAC(b"key", digestmod='sha256')
+        except Exception:
+            self.fail("Standard constructor call raised exception.")
+
+    def test_normal_digestmod(self):
+        # Standard constructor call.
+        failed = 0
+        try:
+            h = hmac.HMAC(b"key", digestmod='sha1')
         except Exception:
             self.fail("Standard constructor call raised exception.")
 
@@ -404,6 +413,7 @@ class SanityTestCase(unittest.TestCase):
 
 class CopyTestCase(unittest.TestCase):
 
+    @unittest.skipIf(hashlib.get_fips_mode(), "Internal attributes unavailable in FIPS mode")
     @requires_hashdigest('sha256')
     def test_attributes(self):
         # Testing if attributes are of same type.
@@ -416,6 +426,7 @@ class CopyTestCase(unittest.TestCase):
         self.assertEqual(type(h1.outer), type(h2.outer),
             "Types of outer don't match.")
 
+    @unittest.skipIf(hashlib.get_fips_mode(), "Internal attributes unavailable in FIPS mode")
     @requires_hashdigest('sha256')
     def test_realcopy(self):
         # Testing if the copy method created a real copy.
@@ -427,6 +438,21 @@ class CopyTestCase(unittest.TestCase):
             "No real copy of the attribute 'inner'.")
         self.assertTrue(id(h1.outer) != id(h2.outer),
             "No real copy of the attribute 'outer'.")
+
+    def test_realcopy(self):
+        # Testing if the copy method created a real copy.
+        h1 = hmac.HMAC(b"key", digestmod="sha1")
+        h2 = h1.copy()
+        # Using id() in case somebody has overridden __eq__/__ne__.
+        self.assertTrue(id(h1) != id(h2), "No real copy of the HMAC instance.")
+        old_digest = h1.digest()
+        assert h1.digest() == h2.digest()
+        h1.update(b'hi')
+        assert h1.digest() != h2.digest()
+        assert h2.digest() == old_digest
+        new_digest = h1.digest()
+        h2.update(b'hi')
+        assert h1.digest() == h2.digest() == new_digest
 
     @requires_hashdigest('sha256')
     def test_equality(self):
