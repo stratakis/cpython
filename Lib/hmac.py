@@ -143,6 +143,8 @@ class HMAC:
         return h.hexdigest()
 
 def _get_openssl_name(digestmod):
+    if digestmod is None:
+        raise ValueError("'digestmod' argument is mandatory in FIPS mode")
     if isinstance(digestmod, str):
         return digestmod.lower()
     elif callable(digestmod):
@@ -153,6 +155,19 @@ def _get_openssl_name(digestmod):
             'Only OpenSSL hashlib hashes are accepted in FIPS mode.')
 
     return digestmod.name.lower().replace('_', '-')
+
+class HMAC_openssl(_hmacopenssl.HMAC):
+    def __new__(cls, key, msg = None, digestmod = None):
+        name = _get_openssl_name(digestmod)
+        result = _hmacopenssl.HMAC.__new__(cls, key, digestmod=name)
+        if msg:
+            result.update(msg)
+        return result
+
+
+if _hashlib.get_fips_mode():
+    HMAC = HMAC_openssl
+
 
 def new(key, msg=None, digestmod=''):
     """Create a new hashing object and return it.
@@ -171,16 +186,7 @@ def new(key, msg=None, digestmod=''):
     method, and can ask for the hash value at any time by calling its digest()
     or hexdigest() methods.
     """
-    if _hashlib.get_fips_mode():
-        if digestmod is None:
-            raise ValueError("'digestmod' argument is mandatory in FIPS mode")
-        name = _get_openssl_name(digestmod)
-        result = _hmacopenssl.new(key, digestmod=name)
-        if msg:
-            result.update(msg)
-        return result
-    else:
-        return HMAC(key, msg, digestmod)
+    return HMAC(key, msg, digestmod)
 
 
 def digest(key, msg, digest):
