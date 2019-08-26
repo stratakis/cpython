@@ -20,6 +20,7 @@ import warnings
 from test import support
 from test.support import _4G, bigmemtest, import_fresh_module
 from http.client import HTTPException
+from functools import partial
 
 # Were we compiled --with-pydebug or with #define Py_DEBUG?
 COMPILED_WITH_PYDEBUG = hasattr(sys, 'gettotalrefcount')
@@ -46,8 +47,10 @@ else:
 
 
 if hashlib.get_fips_mode():
-    FIPS_DISABLED = {'md5', 'MD5', 'blake2b', 'blake2s'}
+    FIPS_UNAVAILABLE = {'blake2b', 'blake2s'}
+    FIPS_DISABLED = {'md5', 'MD5', *FIPS_UNAVAILABLE}
 else:
+    FIPS_UNAVAILABLE = set()
     FIPS_DISABLED = set()
 
 try:
@@ -98,6 +101,14 @@ def read_vectors(hash_name):
             parts[0] = bytes.fromhex(parts[0])
             yield parts
 
+def _is_openssl_constructor(constructor):
+    if getattr(constructor, '__name__', '').startswith('openssl_'):
+        return True
+    if isinstance(constructor, partial):
+        if constructor.func.__name__.startswith('openssl_'):
+            return True
+    return False
+
 
 class HashLibTestCase(unittest.TestCase):
     supported_hash_names = ( 'md5', 'MD5', 'sha1', 'SHA1',
@@ -128,8 +139,8 @@ class HashLibTestCase(unittest.TestCase):
     def __init__(self, *args, **kwargs):
         algorithms = set()
         for algorithm in self.supported_hash_names:
-            algorithms.add(algorithm.lower())
-
+            if algorithm not in FIPS_UNAVAILABLE:
+                algorithms.add(algorithm.lower())
         _blake2 = self._conditional_import_module('_blake2')
         if _blake2:
             algorithms.update({'blake2b', 'blake2s'})
@@ -138,15 +149,21 @@ class HashLibTestCase(unittest.TestCase):
         for algorithm in algorithms:
             self.constructors_to_test[algorithm] = set()
 
+        def _add_constructor(algorithm, constructor):
+            constructors.add(partial(constructor, usedforsecurity=False))
+            if algorithm not in FIPS_DISABLED:
+                constructors.add(constructor)
+                constructors.add(partial(constructor, usedforsecurity=True))
+
         # For each algorithm, test the direct constructor and the use
         # of hashlib.new given the algorithm name.
         for algorithm, constructors in self.constructors_to_test.items():
-            constructors.add(getattr(hashlib, algorithm))
+            _add_constructor(algorithm, getattr(hashlib, algorithm))
             def _test_algorithm_via_hashlib_new(data=None, _alg=algorithm, **kwargs):
                 if data is None:
                     return hashlib.new(_alg, **kwargs)
                 return hashlib.new(_alg, data, **kwargs)
-            constructors.add(_test_algorithm_via_hashlib_new)
+            _add_constructor(algorithm, _test_algorithm_via_hashlib_new)
 
         _hashlib = self._conditional_import_module('_hashlib')
         self._hashlib = _hashlib
@@ -158,13 +175,7 @@ class HashLibTestCase(unittest.TestCase):
             for algorithm, constructors in self.constructors_to_test.items():
                 constructor = getattr(_hashlib, 'openssl_'+algorithm, None)
                 if constructor:
-                    try:
-                        constructor()
-                    except ValueError:
-                        # default constructor blocked by crypto policy
-                        pass
-                    else:
-                        constructors.add(constructor)
+                    _add_constructor(algorithm, constructor)
 
         def add_builtin_constructor(name):
             constructor = getattr(hashlib, "__get_builtin_constructor")(name)
@@ -221,7 +232,7 @@ class HashLibTestCase(unittest.TestCase):
                 c.hexdigest()
 
     def test_algorithms_guaranteed(self):
-        self.assertEqual(hashlib.algorithms_guaranteed - FIPS_DISABLED,
+        self.assertEqual(hashlib.algorithms_guaranteed,
             set(_algo for _algo in self.supported_hash_names
                   if _algo.islower()))
 
@@ -326,10 +337,9 @@ class HashLibTestCase(unittest.TestCase):
                 self.assertIn(h.name, self.supported_hash_names)
             else:
                 self.assertNotIn(h.name, self.supported_hash_names)
-            self.assertEqual(
-                h.name,
-                hashlib.new(h.name, usedforsecurity=False).name
-            )
+            if h.name not in FIPS_DISABLED:
+                self.assertEqual(h.name, hashlib.new(h.name).name)
+            self.assertEqual(h.name, hashlib.new(h.name, usedforsecurity=False).name)
 
     def test_large_update(self):
         aas = b'a' * 128
@@ -371,9 +381,11 @@ class HashLibTestCase(unittest.TestCase):
         self.assertGreaterEqual(len(constructors), 2)
         for hash_object_constructor in constructors:
             if (
-                kwargs
-                and hash_object_constructor.__name__.startswith('openssl_')
+                (kwargs.keys() - {'usedforsecurity'})
+                and _is_openssl_constructor(hash_object_constructor)
             ):
+                # Don't check openssl constructors with
+                # any extra keys (except usedforsecurity)
                 return
             m = hash_object_constructor(data, **kwargs)
             computed = m.hexdigest() if not shake else m.hexdigest(length)
@@ -481,21 +493,18 @@ class HashLibTestCase(unittest.TestCase):
         self.check_blocksize_name('blake2b', 128, 64)
         self.check_blocksize_name('blake2s', 64, 32)
 
-    @unittest.skipIf(hashlib.get_fips_mode(), "md5 unacceptable in FIPS mode")
     def test_case_md5_0(self):
         self.check(
             'md5', b'', 'd41d8cd98f00b204e9800998ecf8427e',
             usedforsecurity=False
         )
 
-    @unittest.skipIf(hashlib.get_fips_mode(), "md5 unacceptable in FIPS mode")
     def test_case_md5_1(self):
         self.check(
             'md5', b'abc', '900150983cd24fb0d6963f7d28e17f72',
             usedforsecurity=False
         )
 
-    @unittest.skipIf(hashlib.get_fips_mode(), "md5 unacceptable in FIPS mode")
     def test_case_md5_2(self):
         self.check(
             'md5',
@@ -507,12 +516,12 @@ class HashLibTestCase(unittest.TestCase):
     @unittest.skipIf(sys.maxsize < _4G + 5, 'test cannot run on 32-bit systems')
     @bigmemtest(size=_4G + 5, memuse=1, dry_run=False)
     def test_case_md5_huge(self, size):
-        self.check('md5', b'A'*size, 'c9af2dff37468ce5dfee8f2cfc0a9c6d')
+        self.check('md5', b'A'*size, 'c9af2dff37468ce5dfee8f2cfc0a9c6d', usedforsecurity=False)
 
     @unittest.skipIf(sys.maxsize < _4G - 1, 'test cannot run on 32-bit systems')
     @bigmemtest(size=_4G - 1, memuse=1, dry_run=False)
     def test_case_md5_uintmax(self, size):
-        self.check('md5', b'A'*size, '28138d306ff1b8281f1a9067e1a1a2b3')
+        self.check('md5', b'A'*size, '28138d306ff1b8281f1a9067e1a1a2b3', usedforsecurity=False)
 
     # use the three examples from Federal Information Processing Standards
     # Publication 180-1, Secure Hash Standard,  1995 April 17
@@ -958,6 +967,15 @@ class HashLibTestCase(unittest.TestCase):
         ):
             HASHXOF()
 
+    @unittest.skipUnless(hashlib.get_fips_mode(), 'Needs FIPS mode.')
+    def test_usedforsecurity_repeat(self):
+        """Make sure usedforsecurity flag isn't copied to other contexts"""
+        for i in range(3):
+            for cons in hashlib.md5, partial(hashlib.new, 'md5'):
+                self.assertRaises(ValueError, cons)
+                self.assertRaises(ValueError, partial(cons, usedforsecurity=True))
+                self.assertEqual(cons(usedforsecurity=False).hexdigest(),
+                                'd41d8cd98f00b204e9800998ecf8427e')
 
 class KDFTests(unittest.TestCase):
 
