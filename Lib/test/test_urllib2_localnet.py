@@ -7,6 +7,7 @@ import http.server
 import threading
 import unittest
 import hashlib
+from _hashlib import get_fips_mode
 
 from test import support
 from test.support import hashlib_helper
