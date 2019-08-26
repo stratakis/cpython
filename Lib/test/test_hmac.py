@@ -5,6 +5,7 @@ import hashlib
 import unittest
 import unittest.mock
 import warnings
+from _hashlib import get_fips_mode
 
 from test.support import requires_hashdigest
 
@@ -288,7 +289,7 @@ class TestVectorsTestCase(unittest.TestCase):
     def test_sha512_rfc4231(self):
         self._rfc4231_test_cases(hashlib.sha512, 'sha512', 64, 128)
 
-    @unittest.skipIf(hashlib.get_fips_mode(), 'MockCrazyHash unacceptable in FIPS mode.')
+    @unittest.skipIf(get_fips_mode(), 'MockCrazyHash unacceptable in FIPS mode.')
     @requires_hashdigest('sha256')
     def test_legacy_block_size_warnings(self):
         class MockCrazyHash(object):
@@ -413,7 +414,7 @@ class SanityTestCase(unittest.TestCase):
 
 class CopyTestCase(unittest.TestCase):
 
-    @unittest.skipIf(hashlib.get_fips_mode(), "Internal attributes unavailable in FIPS mode")
+    @unittest.skipIf(get_fips_mode(), "Internal attributes unavailable in FIPS mode")
     @requires_hashdigest('sha256')
     def test_attributes(self):
         # Testing if attributes are of same type.
@@ -426,7 +427,7 @@ class CopyTestCase(unittest.TestCase):
         self.assertEqual(type(h1.outer), type(h2.outer),
             "Types of outer don't match.")
 
-    @unittest.skipIf(hashlib.get_fips_mode(), "Internal attributes unavailable in FIPS mode")
+    @unittest.skipIf(get_fips_mode(), "Internal attributes unavailable in FIPS mode")
     @requires_hashdigest('sha256')
     def test_realcopy(self):
         # Testing if the copy method created a real copy.
