@@ -23,6 +23,7 @@ import hashlib
 import random
 import unittest
 import warnings
+from _hashlib import get_fips_mode
 from _operator import _compare_digest as operator_compare_digest
 from test import support
 from test.support import _4G, bigmemtest
@@ -721,6 +722,7 @@ class RFCTestCaseMixin(HashFunctionsTrait, AssertersMixin):
             )
 
 
+@unittest.skipIf(get_fips_mode(), "_init_old redirects to OpenSSL in FIPS mode")
 class PurePythonInitHMAC(PyModuleMixin, HashFunctionsTrait):
 
     @classmethod
@@ -1234,6 +1236,7 @@ class CopyBaseTestCase:
         raise NotImplementedError
 
 
+@unittest.skipIf(get_fips_mode(), "_init_old redirects to OpenSSL in FIPS mode")
 @hashlib_helper.requires_hashdigest('sha256')
 class PythonCopyTestCase(CopyBaseTestCase, unittest.TestCase):
 
@@ -1506,6 +1509,11 @@ class PyMiscellaneousTests(unittest.TestCase):
                 h._x = self._x.copy()
                 return h
 
+        if get_fips_mode():
+            with self.assertRaises(ValueError):
+                hmac.HMAC(b'a', b'b', digestmod=MockCrazyHash)
+            return
+
         with warnings.catch_warnings():
             warnings.simplefilter('error', RuntimeWarning)
             with self.assertRaises(RuntimeWarning):
@@ -1532,6 +1540,7 @@ class PyMiscellaneousTests(unittest.TestCase):
             self.assertEqual(h.digest(), expect)
             self.assertEqual(hmac.digest(b'a', b'b', MockCrazyHash), expect)
 
+    @unittest.skipIf(get_fips_mode(), "No builtin constructors in FIPS mode")
     @hashlib_helper.requires_hashdigest('sha256')
     def test_with_fallback(self):
         cache = getattr(hashlib, '__builtin_constructor_cache')
