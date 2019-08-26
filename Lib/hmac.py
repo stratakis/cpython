@@ -48,6 +48,11 @@ class HMAC:
                    msg argument.  Passing it as a keyword argument is
                    recommended, though not required for legacy API reasons.
         """
+        if _hashlibopenssl.get_fips_mode():
+            raise ValueError(
+                'This class is not available in FIPS mode. '
+                + 'Use hmac.new().'
+            )
 
         if not isinstance(key, (bytes, bytearray)):
             raise TypeError("key: expected bytes or bytearray, but got %r" % type(key).__name__)
@@ -118,6 +123,9 @@ class HMAC:
         """Feed data from msg into this hashing object."""
         inst = self._hmac or self._inner
         inst.update(msg)
+        if _hashlibopenssl.get_fips_mode():
+            raise ValueError('hmac.HMAC is not available in FIPS mode')
+        self._inner.update(msg)
 
     def copy(self):
         """Return a separate copy of this hashing object.
@@ -163,6 +171,34 @@ class HMAC:
         """
         h = self._current()
         return h.hexdigest()
+
+def _get_openssl_name(digestmod):
+    if isinstance(digestmod, str):
+        return digestmod.lower()
+    elif callable(digestmod):
+        digestmod = digestmod(b'')
+
+    if not isinstance(digestmod, _hashlibopenssl.HASH):
+        raise TypeError(
+            'Only OpenSSL hashlib hashes are accepted in FIPS mode.')
+
+    return digestmod.name.lower().replace('_', '-')
+
+class HMAC_openssl(_hmacopenssl.HMAC):
+    def __new__(cls, key, msg = None, digestmod = None):
+        if not isinstance(key, (bytes, bytearray)):
+            raise TypeError("key: expected bytes or bytearray, but got %r" % type(key).__name__)
+
+        name = _get_openssl_name(digestmod)
+        result = _hmacopenssl.HMAC.__new__(cls, key, digestmod=name)
+        if msg:
+            result.update(msg)
+        return result
+
+
+if _hashlibopenssl.get_fips_mode():
+    HMAC = HMAC_openssl
+
 
 def new(key, msg=None, digestmod=''):
     """Create a new hashing object and return it.
