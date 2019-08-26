@@ -50,7 +50,7 @@ class HMAC:
                    msg argument.  Passing it as a keyword argument is
                    recommended, though not required for legacy API reasons.
         """
-        if _hashlib.get_fips_mode():
+        if _hashlibopenssl.get_fips_mode():
             raise ValueError(
                 'This class is not available in FIPS mode. '
                 + 'Use hmac.new().'
@@ -117,7 +117,7 @@ class HMAC:
 
     def update(self, msg):
         """Feed data from msg into this hashing object."""
-        if _hashlib.get_fips_mode():
+        if _hashlibopenssl.get_fips_mode():
             raise ValueError('hmac.HMAC is not available in FIPS mode')
         self._inner.update(msg)
 
@@ -183,7 +183,7 @@ class HMAC_openssl(_hmacopenssl.HMAC):
         return result
 
 
-if _hashlib.get_fips_mode():
+if _hashlibopenssl.get_fips_mode():
     HMAC = HMAC_openssl
 
 

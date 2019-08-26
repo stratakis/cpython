@@ -53,6 +53,8 @@ More condensed:
 
 """
 
+import _hashlib
+
 # This tuple and __get_builtin_constructor() must be modified if a new
 # always available algorithm is added.
 __always_supported = ('md5', 'sha1', 'sha224', 'sha256', 'sha384', 'sha512',
@@ -77,13 +79,7 @@ __block_openssl_constructor = {
     'blake2b', 'blake2s',
 }
 
-try:
-    from _hashlib import get_fips_mode
-except ImportError:
-    def get_fips_mode():
-        return 0
-
-if not get_fips_mode():
+if not _hashlib.get_fips_mode():
     __builtin_constructor_cache = {}
 
     def __get_builtin_constructor(name):
@@ -131,7 +127,7 @@ if not get_fips_mode():
 
 
 def __get_openssl_constructor(name):
-    if not get_fips_mode():
+    if not _hashlib.get_fips_mode():
         if name in __block_openssl_constructor:
             # Prefer our builtin blake2 implementation.
             return __get_builtin_constructor(name)
@@ -142,7 +138,7 @@ def __get_openssl_constructor(name):
         # Allow the C module to raise ValueError.  The function will be
         # defined but the hash not actually available.  Don't fall back to
         # builtin if the current security policy blocks a digest, bpo#40695.
-        if not get_fips_mode():
+        if not _hashlib.get_fips_mode():
             # N.B. In "FIPS mode", there is no fallback.
             # If this test fails, we want to export the broken hash
             # constructor anyway.
@@ -153,7 +149,7 @@ def __get_openssl_constructor(name):
         return __get_builtin_constructor(name)
 
 
-if not get_fips_mode():
+if not _hashlib.get_fips_mode():
     def __py_new(name, data=b'', **kwargs):
         """new(name, data=b'', **kwargs) - Return a new hashing object using the
         named algorithm; optionally initialized with data (which must be
@@ -166,7 +162,7 @@ def __hash_new(name, data=b'', **kwargs):
     """new(name, data=b'') - Return a new hashing object using the named algorithm;
     optionally initialized with data (which must be a bytes-like object).
     """
-    if not get_fips_mode():
+    if not _hashlib.get_fips_mode():
         if name in __block_openssl_constructor:
             # Prefer our builtin blake2 implementation.
             return __get_builtin_constructor(name)(data, **kwargs)
@@ -177,7 +173,7 @@ def __hash_new(name, data=b'', **kwargs):
         # hash, try using our builtin implementations.
         # This allows for SHA224/256 and SHA384/512 support even though
         # the OpenSSL library prior to 0.9.8 doesn't provide them.
-        if get_fips_mode():
+        if _hashlib.get_fips_mode():
             raise
         return __get_builtin_constructor(name)(data)
 
@@ -189,7 +185,7 @@ try:
     algorithms_available = algorithms_available.union(
             _hashlib.openssl_md_meth_names)
 except ImportError:
-    if get_fips_mode:
+    if _hashlib.get_fips_mode:
         raise
     new = __py_new
     __get_hash = __get_builtin_constructor
@@ -224,5 +220,5 @@ for __func_name in __always_supported:
 # Cleanup locals()
 del __always_supported, __func_name, __get_hash
 del __hash_new, __get_openssl_constructor
-if not get_fips_mode():
+if not _hashlib.get_fips_mode():
     del __py_new

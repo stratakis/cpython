@@ -6,7 +6,7 @@ import hashlib, _hashlib
 
 class HashlibFipsTests(unittest.TestCase):
 
-    @unittest.skipUnless(hashlib.get_fips_mode(), "Test only when FIPS is enabled")
+    @unittest.skipUnless(_hashlib.get_fips_mode(), "Test only when FIPS is enabled")
     def test_fips_imports(self):
         """blake2s and blake2b should fail to import in FIPS mode
         """
@@ -15,7 +15,7 @@ class HashlibFipsTests(unittest.TestCase):
         with self.assertRaises(ValueError, msg='blake2b not available in FIPS'):
             m = hashlib.blake2b()
 
-    @unittest.skipIf(hashlib.get_fips_mode(), "blake2 hashes are not available under FIPS")
+    @unittest.skipIf(_hashlib.get_fips_mode(), "blake2 hashes are not available under FIPS")
     def test_blake2_hashes(self):
         self.assertEqual(hashlib.blake2b(b'abc').hexdigest(), _hashlib.openssl_blake2b(b'abc').hexdigest())
         self.assertEqual(hashlib.blake2s(b'abc').hexdigest(), _hashlib.openssl_blake2s(b'abc').hexdigest())
