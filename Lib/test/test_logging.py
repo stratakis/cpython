@@ -46,6 +46,7 @@ import time
 import unittest
 import warnings
 import weakref
+
 try:
     import threading
     # The following imports are needed only for tests which

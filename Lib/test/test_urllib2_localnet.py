@@ -6,6 +6,7 @@ import urllib.request
 import http.server
 import unittest
 import hashlib
+from _hashlib import get_fips_mode
 
 from test import support
 

@@ -16,6 +16,8 @@ import time
 import select
 import errno
 import textwrap
+import hashlib
+from _hashlib import get_fips_mode
 
 import unittest
 from test import support, mock_socket
@@ -980,7 +982,7 @@ class SMTPSimTests(unittest.TestCase):
 
     def testAUTH_multiple(self):
         # Test that multiple authentication methods are tried.
-        self.serv.add_feature("AUTH BOGUS PLAIN LOGIN CRAM-MD5")
+        self.serv.add_feature("AUTH BOGUS PLAIN LOGIN")
         smtp = smtplib.SMTP(HOST, self.port, local_hostname='localhost', timeout=15)
         resp = smtp.login(sim_auth[0], sim_auth[1])
         self.assertEqual(resp, (235, b'Authentication Succeeded'))
