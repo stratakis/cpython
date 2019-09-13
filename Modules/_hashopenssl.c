@@ -517,7 +517,7 @@ static PyTypeObject EVPtype = {
 \
 static PyObject *
 EVPnew(const EVP_MD *digest,
-       const unsigned char *cp, Py_ssize_t len)
+       const unsigned char *cp, Py_ssize_t len, int usedforsecurity)
 {
     int result = 0;
     EVPobject *self;
@@ -529,6 +529,12 @@ EVPnew(const EVP_MD *digest,
 
     if ((self = newEVPobject()) == NULL)
         return NULL;
+
+    if (!usedforsecurity) {
+#ifdef EVP_MD_CTX_FLAG_NON_FIPS_ALLOW
+        EVP_MD_CTX_set_flags(self->ctx, EVP_MD_CTX_FLAG_NON_FIPS_ALLOW);
+#endif
+    }
 
     if (!EVP_DigestInit_ex(self->ctx, digest, NULL)) {
         _setException(PyExc_ValueError);
@@ -561,6 +567,8 @@ _hashlib.new as EVP_new
 
     name as name_obj: object
     string as data_obj: object(c_default="NULL") = b''
+    *
+    usedforsecurity: bool = True
 
 Return a new hash object using the named algorithm.
 
@@ -571,8 +579,9 @@ The MD5 and SHA1 algorithms are always supported.
 [clinic start generated code]*/
 
 static PyObject *
-EVP_new_impl(PyObject *module, PyObject *name_obj, PyObject *data_obj)
-/*[clinic end generated code: output=9e7cf664e04b0226 input=7eb79bf30058bd02]*/
+EVP_new_impl(PyObject *module, PyObject *name_obj, PyObject *data_obj,
+             int usedforsecurity)
+/*[clinic end generated code: output=ddd5053f92dffe90 input=c24554d0337be1b0]*/
 {
     Py_buffer view = { 0 };
     PyObject *ret_obj;
@@ -589,7 +598,9 @@ EVP_new_impl(PyObject *module, PyObject *name_obj, PyObject *data_obj)
 
     digest = py_digest_by_name(name);
 
-    ret_obj = EVPnew(digest, (unsigned char*)view.buf, view.len);
+    ret_obj = EVPnew(digest,
+                    (unsigned char*)view.buf, view.len,
+                    usedforsecurity);
 
     if (data_obj)
         PyBuffer_Release(&view);
@@ -597,7 +608,8 @@ EVP_new_impl(PyObject *module, PyObject *name_obj, PyObject *data_obj)
 }
 
 static PyObject*
-EVP_fast_new(PyObject *module, PyObject *data_obj, const EVP_MD *digest)
+EVP_fast_new(PyObject *module, PyObject *data_obj, const EVP_MD *digest,
+             int usedforsecurity)
 {
     Py_buffer view = { 0 };
     PyObject *ret_obj;
@@ -605,7 +617,8 @@ EVP_fast_new(PyObject *module, PyObject *data_obj, const EVP_MD *digest)
     if (data_obj)
         GET_BUFFER_VIEW_OR_ERROUT(data_obj, &view);
 
-    ret_obj = EVPnew(digest, (unsigned char*)view.buf, view.len);
+    ret_obj = EVPnew(digest, (unsigned char*)view.buf, view.len,
+                     usedforsecurity);
 
     if (data_obj)
         PyBuffer_Release(&view);
@@ -617,16 +630,19 @@ EVP_fast_new(PyObject *module, PyObject *data_obj, const EVP_MD *digest)
 _hashlib.openssl_md5
 
     string as data_obj: object(py_default="b''") = NULL
+    *
+    usedforsecurity: bool = True
 
 Returns a md5 hash object; optionally initialized with a string
 
 [clinic start generated code]*/
 
 static PyObject *
-_hashlib_openssl_md5_impl(PyObject *module, PyObject *data_obj)
-/*[clinic end generated code: output=6caae75b73e22c3f input=52010d3869e1b1a7]*/
+_hashlib_openssl_md5_impl(PyObject *module, PyObject *data_obj,
+                          int usedforsecurity)
+/*[clinic end generated code: output=87b0186440a44f8c input=990e36d5e689b16e]*/
 {
-    return EVP_fast_new(module, data_obj, EVP_md5());
+    return EVP_fast_new(module, data_obj, EVP_md5(), usedforsecurity);
 }
 
 
@@ -634,16 +650,19 @@ _hashlib_openssl_md5_impl(PyObject *module, PyObject *data_obj)
 _hashlib.openssl_sha1
 
     string as data_obj: object(py_default="b''") = NULL
+    *
+    usedforsecurity: bool = True
 
 Returns a sha1 hash object; optionally initialized with a string
 
 [clinic start generated code]*/
 
 static PyObject *
-_hashlib_openssl_sha1_impl(PyObject *module, PyObject *data_obj)
-/*[clinic end generated code: output=07606d8f75153e61 input=16807d30e4aa8ae9]*/
+_hashlib_openssl_sha1_impl(PyObject *module, PyObject *data_obj,
+                           int usedforsecurity)
+/*[clinic end generated code: output=6813024cf690670d input=948f2f4b6deabc10]*/
 {
-    return EVP_fast_new(module, data_obj, EVP_sha1());
+    return EVP_fast_new(module, data_obj, EVP_sha1(), usedforsecurity);
 }
 
 
@@ -651,16 +670,19 @@ _hashlib_openssl_sha1_impl(PyObject *module, PyObject *data_obj)
 _hashlib.openssl_sha224
 
     string as data_obj: object(py_default="b''") = NULL
+    *
+    usedforsecurity: bool = True
 
 Returns a sha224 hash object; optionally initialized with a string
 
 [clinic start generated code]*/
 
 static PyObject *
-_hashlib_openssl_sha224_impl(PyObject *module, PyObject *data_obj)
-/*[clinic end generated code: output=55e848761bcef0c9 input=5dbc2f1d84eb459b]*/
+_hashlib_openssl_sha224_impl(PyObject *module, PyObject *data_obj,
+                             int usedforsecurity)
+/*[clinic end generated code: output=a2dfe7cc4eb14ebb input=f9272821fadca505]*/
 {
-    return EVP_fast_new(module, data_obj, EVP_sha224());
+    return EVP_fast_new(module, data_obj, EVP_sha224(), usedforsecurity);
 }
 
 
@@ -668,16 +690,19 @@ _hashlib_openssl_sha224_impl(PyObject *module, PyObject *data_obj)
 _hashlib.openssl_sha256
 
     string as data_obj: object(py_default="b''") = NULL
+    *
+    usedforsecurity: bool = True
 
 Returns a sha256 hash object; optionally initialized with a string
 
 [clinic start generated code]*/
 
 static PyObject *
-_hashlib_openssl_sha256_impl(PyObject *module, PyObject *data_obj)
-/*[clinic end generated code: output=05851d7cce34ac65 input=a68a5d21cda5a80f]*/
+_hashlib_openssl_sha256_impl(PyObject *module, PyObject *data_obj,
+                             int usedforsecurity)
+/*[clinic end generated code: output=1f874a34870f0a68 input=549fad9d2930d4c5]*/
 {
-    return EVP_fast_new(module, data_obj, EVP_sha256());
+    return EVP_fast_new(module, data_obj, EVP_sha256(), usedforsecurity);
 }
 
 
@@ -685,16 +710,19 @@ _hashlib_openssl_sha256_impl(PyObject *module, PyObject *data_obj)
 _hashlib.openssl_sha384
 
     string as data_obj: object(py_default="b''") = NULL
+    *
+    usedforsecurity: bool = True
 
 Returns a sha384 hash object; optionally initialized with a string
 
 [clinic start generated code]*/
 
 static PyObject *
-_hashlib_openssl_sha384_impl(PyObject *module, PyObject *data_obj)
-/*[clinic end generated code: output=5101a4704a932c2f input=6bdfa006622b64ea]*/
+_hashlib_openssl_sha384_impl(PyObject *module, PyObject *data_obj,
+                             int usedforsecurity)
+/*[clinic end generated code: output=58529eff9ca457b2 input=48601a6e3bf14ad7]*/
 {
-    return EVP_fast_new(module, data_obj, EVP_sha384());
+    return EVP_fast_new(module, data_obj, EVP_sha384(), usedforsecurity);
 }
 
 
@@ -702,152 +730,179 @@ _hashlib_openssl_sha384_impl(PyObject *module, PyObject *data_obj)
 _hashlib.openssl_sha512
 
     string as data_obj: object(py_default="b''") = NULL
+    *
+    usedforsecurity: bool = True
 
 Returns a sha512 hash object; optionally initialized with a string
 
 [clinic start generated code]*/
 
 static PyObject *
-_hashlib_openssl_sha512_impl(PyObject *module, PyObject *data_obj)
-/*[clinic end generated code: output=20c8e63ee560a5cb input=ece50182ad4b76a6]*/
+_hashlib_openssl_sha512_impl(PyObject *module, PyObject *data_obj,
+                             int usedforsecurity)
+/*[clinic end generated code: output=2c744c9e4a40d5f6 input=c5c46a2a817aa98f]*/
 {
-    return EVP_fast_new(module, data_obj, EVP_sha512());
+    return EVP_fast_new(module, data_obj, EVP_sha512(), usedforsecurity);
 }
 
 /*[clinic input]
 _hashlib.openssl_blake2b
 
     string as data_obj: object(py_default="b''") = NULL
+    *
+    usedforsecurity: bool = True
 
 Returns a blake2b hash object; optionally initialized with a string
 
 [clinic start generated code]*/
 
 static PyObject *
-_hashlib_openssl_blake2b_impl(PyObject *module, PyObject *data_obj)
-/*[clinic end generated code: output=0d65acd1d9bb5e3f input=d9e6f84fa97e630d]*/
+_hashlib_openssl_blake2b_impl(PyObject *module, PyObject *data_obj,
+                              int usedforsecurity)
+/*[clinic end generated code: output=7a838b1643cde13e input=37247f187d9c4f4a]*/
 
 {
-    return EVP_fast_new(module, data_obj, EVP_blake2b512());
+    return EVP_fast_new(module, data_obj, EVP_blake2b512(), usedforsecurity);
 }
 
 /*[clinic input]
 _hashlib.openssl_blake2s
 
     string as data_obj: object(py_default="b''") = NULL
+    *
+    usedforsecurity: bool = True
 
 Returns a blake2s hash object; optionally initialized with a string
 
 [clinic start generated code]*/
 
 static PyObject *
-_hashlib_openssl_blake2s_impl(PyObject *module, PyObject *data_obj)
-/*[clinic end generated code: output=0f1330138041ec22 input=f1aec29465fc49c6]*/
+_hashlib_openssl_blake2s_impl(PyObject *module, PyObject *data_obj,
+                              int usedforsecurity)
+/*[clinic end generated code: output=4eda6b40757471da input=36e42912f87ff123]*/
 
 {
-    return EVP_fast_new(module, data_obj, EVP_blake2s256());
+    return EVP_fast_new(module, data_obj, EVP_blake2s256(), usedforsecurity);
 }
 
 /*[clinic input]
 _hashlib.openssl_sha3_224
 
     string as data_obj: object(py_default="b''") = NULL
+    *
+    usedforsecurity: bool = True
 
 Returns a sha3_224 hash object; optionally initialized with a string
 
 [clinic start generated code]*/
 
 static PyObject *
-_hashlib_openssl_sha3_224_impl(PyObject *module, PyObject *data_obj)
-/*[clinic end generated code: output=e3817bed6ecafc20 input=adc74bf14410af70]*/
+_hashlib_openssl_sha3_224_impl(PyObject *module, PyObject *data_obj,
+                               int usedforsecurity)
+/*[clinic end generated code: output=144641c1d144b974 input=450128ca92633287]*/
 
 {
-    return EVP_fast_new(module, data_obj, EVP_sha3_224());
+    return EVP_fast_new(module, data_obj, EVP_sha3_224(), usedforsecurity);
 }
 
 /*[clinic input]
 _hashlib.openssl_sha3_256
 
     string as data_obj: object(py_default="b''") = NULL
+    *
+    usedforsecurity: bool = True
 
 Returns a sha3_256 hash object; optionally initialized with a string
 
 [clinic start generated code]*/
 
 static PyObject *
-_hashlib_openssl_sha3_256_impl(PyObject *module, PyObject *data_obj)
-/*[clinic end generated code: output=9c15fac1ce09cd62 input=2922c3e78ab8bd2d]*/
+_hashlib_openssl_sha3_256_impl(PyObject *module, PyObject *data_obj,
+                               int usedforsecurity)
+/*[clinic end generated code: output=c61f1ab772d06668 input=dda801b8285bc25f]*/
 
 {
-    return EVP_fast_new(module, data_obj, EVP_sha3_256());
+    return EVP_fast_new(module, data_obj, EVP_sha3_256(), usedforsecurity);
 }
 
 /*[clinic input]
 _hashlib.openssl_sha3_384
 
     string as data_obj: object(py_default="b''") = NULL
+    *
+    usedforsecurity: bool = True
 
 Returns a sha3_384 hash object; optionally initialized with a string
 
 [clinic start generated code]*/
 
 static PyObject *
-_hashlib_openssl_sha3_384_impl(PyObject *module, PyObject *data_obj)
-/*[clinic end generated code: output=0923a782b9b81a40 input=742b499c372c8316]*/
+_hashlib_openssl_sha3_384_impl(PyObject *module, PyObject *data_obj,
+                               int usedforsecurity)
+/*[clinic end generated code: output=f68e4846858cf0ee input=3e2c46d271c64ec8]*/
 
 {
-    return EVP_fast_new(module, data_obj, EVP_sha3_384());
+    return EVP_fast_new(module, data_obj, EVP_sha3_384(), usedforsecurity);
 }
 
 /*[clinic input]
 _hashlib.openssl_sha3_512
 
     string as data_obj: object(py_default="b''") = NULL
+    *
+    usedforsecurity: bool = True
 
 Returns a sha3-512 hash object; optionally initialized with a string
 
 [clinic start generated code]*/
 
 static PyObject *
-_hashlib_openssl_sha3_512_impl(PyObject *module, PyObject *data_obj)
-/*[clinic end generated code: output=34bbe194704dbce4 input=46383f88e59a0385]*/
+_hashlib_openssl_sha3_512_impl(PyObject *module, PyObject *data_obj,
+                               int usedforsecurity)
+/*[clinic end generated code: output=2eede478c159354a input=64e2cc0c094d56f4]*/
 
 {
-    return EVP_fast_new(module, data_obj, EVP_sha3_512());
+    return EVP_fast_new(module, data_obj, EVP_sha3_512(), usedforsecurity);
 }
 
 /*[clinic input]
 _hashlib.openssl_shake_128
 
     string as data_obj: object(py_default="b''") = NULL
+    *
+    usedforsecurity: bool = True
 
 Returns a shake_128 hash object; optionally initialized with a string
 
 [clinic start generated code]*/
 
 static PyObject *
-_hashlib_openssl_shake_128_impl(PyObject *module, PyObject *data_obj)
-/*[clinic end generated code: output=a6ea5917ce65ef10 input=f256751eb810fdaa]*/
+_hashlib_openssl_shake_128_impl(PyObject *module, PyObject *data_obj,
+                                int usedforsecurity)
+/*[clinic end generated code: output=bc49cdd8ada1fa97 input=395c17aac1eb4d2e]*/
 
 {
-    return EVP_fast_new(module, data_obj, EVP_shake128());
+    return EVP_fast_new(module, data_obj, EVP_shake128(), usedforsecurity);
 }
 
 /*[clinic input]
 _hashlib.openssl_shake_256
 
     string as data_obj: object(py_default="b''") = NULL
+    *
+    usedforsecurity: bool = True
 
 Returns a shake_256 hash object; optionally initialized with a string
 
 [clinic start generated code]*/
 
 static PyObject *
-_hashlib_openssl_shake_256_impl(PyObject *module, PyObject *data_obj)
-/*[clinic end generated code: output=c91aaa96b000e186 input=d1331313db34116c]*/
+_hashlib_openssl_shake_256_impl(PyObject *module, PyObject *data_obj,
+                                int usedforsecurity)
+/*[clinic end generated code: output=358d213be8852df7 input=4fcf0b80fb663690]*/
 
 {
-    return EVP_fast_new(module, data_obj, EVP_shake256());
+    return EVP_fast_new(module, data_obj, EVP_shake256(), usedforsecurity);
 }
 
 
