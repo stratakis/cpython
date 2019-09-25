@@ -4,6 +4,7 @@ import email.mime.text
 from email.message import EmailMessage
 from email.base64mime import body_encode as encode_base64
 import email.utils
+import hashlib
 import hmac
 import socket
 import smtpd
@@ -18,6 +19,7 @@ import textwrap
 
 import unittest
 from test import support, mock_socket
+from test.support import requires_hashdigest
 from unittest.mock import Mock
 
 HOST = "localhost"
@@ -968,6 +970,7 @@ class SMTPSimTests(unittest.TestCase):
         self.assertEqual(resp, (235, b'Authentication Succeeded'))
         smtp.close()
 
+    @requires_hashdigest('md5')
     def testAUTH_CRAM_MD5(self):
         self.serv.add_feature("AUTH CRAM-MD5")
         smtp = smtplib.SMTP(HOST, self.port, local_hostname='localhost', timeout=15)
@@ -984,7 +987,13 @@ class SMTPSimTests(unittest.TestCase):
         smtp.close()
 
     def test_auth_function(self):
-        supported = {'CRAM-MD5', 'PLAIN', 'LOGIN'}
+        supported = {'PLAIN', 'LOGIN'}
+        try:
+            hashlib.md5()
+        except ValueError:
+            pass
+        else:
+            supported.add('CRAM-MD5')
         for mechanism in supported:
             self.serv.add_feature("AUTH {}".format(mechanism))
         for mechanism in supported:
