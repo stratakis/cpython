@@ -495,6 +495,9 @@ extern char        *ctermid_r(char *);
 #  define MODNAME "posix"
 #endif
 
+/* for FIPS check in os.getrandom() */
+#include <openssl/crypto.h>
+
 #if defined(__sun)
 /* Something to implement in autoconf, not present in autoconf 2.69 */
 #  define HAVE_STRUCT_STAT_ST_FSTYPE 1
@@ -14169,6 +14172,11 @@ os_getrandom_impl(PyObject *module, Py_ssize_t size, int flags)
     if (size < 0) {
         errno = EINVAL;
         return posix_error();
+    }
+
+    if (FIPS_mode()) {
+        PyErr_SetString(PyExc_ValueError, "getrandom is not FIPS compliant");
+        return NULL;
     }
 
     bytes = PyBytes_FromStringAndSize(NULL, size);
