@@ -3210,7 +3210,12 @@ if _have_threads:
                 with context.wrap_socket(socket.socket()) as s:
                     self.assertIs(s.version(), None)
                     s.connect((HOST, server.port))
-                    self.assertEqual(s.version(), 'TLSv1')
+                    if IS_OPENSSL_1_1:
+                        self.assertEqual(s.version(), 'TLSv1.3')
+                    elif ssl.OPENSSL_VERSION_INFO >= (1, 0, 2):
+                        self.assertEqual(s.version(), 'TLSv1.2')
+                    else:  # 0.9.8 to 1.0.1
+                        self.assertIn(s.version(), ('TLSv1', 'TLSv1.2'))
                 self.assertIs(s.version(), None)
 
         @unittest.skipUnless(ssl.HAS_TLSv1_3,
@@ -3280,7 +3285,10 @@ if _have_threads:
 
                 # check if it is sane
                 self.assertIsNotNone(cb_data)
-                self.assertEqual(len(cb_data), 12) # True for TLSv1
+                if s.version() == 'TLSv1.3':
+                    self.assertEqual(len(cb_data), 48)
+                else:
+                    self.assertEqual(len(cb_data), 12)  # True for TLSv1
 
                 # and compare with the peers version
                 s.write(b"CB tls-unique\n")
@@ -3304,7 +3312,10 @@ if _have_threads:
                 # is it really unique
                 self.assertNotEqual(cb_data, new_cb_data)
                 self.assertIsNotNone(cb_data)
-                self.assertEqual(len(cb_data), 12) # True for TLSv1
+                if s.version() == 'TLSv1.3':
+                     self.assertEqual(len(cb_data), 48)
+                else:
+                     self.assertEqual(len(cb_data), 12) # True for TLSv1
                 s.write(b"CB tls-unique\n")
                 peer_data_repr = s.read().strip()
                 self.assertEqual(peer_data_repr,
