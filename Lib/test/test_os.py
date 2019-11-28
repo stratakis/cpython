@@ -28,6 +28,7 @@ import time
 import unittest
 import uuid
 import warnings
+from _hashlib import get_fips_mode
 from test import support
 from platform import win32_is_iot
 
@@ -1547,7 +1548,7 @@ class GetRandomTests(unittest.TestCase):
             else:
                 raise
         except ValueError as exc:
-            if exc.args[0] == "getrandom is not FIPS compliant":
+            if get_fips_mode() and exc.args[0] == "getrandom is not FIPS compliant":
                 raise unittest.SkipTest("Skip in FIPS mode")
             else:
                 raise
