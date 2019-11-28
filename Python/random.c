@@ -410,39 +410,12 @@ dev_urandom_close(void)
 }
 #endif /* !MS_WINDOWS */
 
-#include <openssl/crypto.h>
-#include <openssl/err.h>
 #include <openssl/rand.h>
+#include <_hashopenssl.h>
 
 #if (OPENSSL_VERSION_NUMBER < 0x10101000L) || defined(LIBRESSL_VERSION_NUMBER)
 #  error "py_openssl_drbg_urandom requires OpenSSL 1.1.1 for fork safety"
 #endif
-
-static void
-py_openssl_set_exception(PyObject* exc) {
-    unsigned long errcode;
-    const char *lib, *func, *reason;
-
-    errcode = ERR_peek_last_error();
-    if (!errcode) {
-        PyErr_SetString(exc, "unknown reasons");
-    }
-    ERR_clear_error();
-
-    lib = ERR_lib_error_string(errcode);
-    func = ERR_func_error_string(errcode);
-    reason = ERR_reason_error_string(errcode);
-
-    if (lib && func) {
-        PyErr_Format(exc, "[%s: %s] %s", lib, func, reason);
-    }
-    else if (lib) {
-        PyErr_Format(exc, "[%s] %s", lib, reason);
-    }
-    else {
-        PyErr_SetString(exc, reason);
-    }
-}
 
 static int
 py_openssl_drbg_urandom(char *buffer, Py_ssize_t size, int raise)
@@ -455,7 +428,7 @@ py_openssl_drbg_urandom(char *buffer, Py_ssize_t size, int raise)
         res = OPENSSL_init_crypto(OPENSSL_INIT_ATFORK, NULL);
         if (res == 0) {
             if (raise) {
-                py_openssl_set_exception(PyExc_RuntimeError);
+                _setException(PyExc_RuntimeError);
             }
             return 0;
         }
@@ -475,7 +448,7 @@ py_openssl_drbg_urandom(char *buffer, Py_ssize_t size, int raise)
         return 1;
     } else {
         if (raise) {
-            py_openssl_set_exception(PyExc_RuntimeError);
+            _setException(PyExc_RuntimeError);
         }
         return 0;
     }
