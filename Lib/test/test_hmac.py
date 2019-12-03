@@ -329,7 +329,7 @@ class ConstructorTestCase(unittest.TestCase):
                           digestmod="sha256")
         except Exception:
             self.fail("Constructor call with bytearray arguments raised exception.")
-            self.assertEqual(h.hexdigest(), self.expected)
+        self.assertEqual(h.hexdigest(), self.expected)
 
     @requires_hashdigest('sha256')
     def test_with_memoryview_msg(self):
@@ -337,7 +337,7 @@ class ConstructorTestCase(unittest.TestCase):
             h = hmac.HMAC(b"key", memoryview(b"hash this!"), digestmod="sha256")
         except Exception:
             self.fail("Constructor call with memoryview msg raised exception.")
-            self.assertEqual(h.hexdigest(), self.expected)
+        self.assertEqual(h.hexdigest(), self.expected)
 
     @requires_hashdigest('sha256')
     def test_withmodule(self):
