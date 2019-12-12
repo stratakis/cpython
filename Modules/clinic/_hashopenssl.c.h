@@ -860,6 +860,186 @@ exit:
     return return_value;
 }
 
+#if defined(PY_OPENSSL_HAS_BLAKE2)
+
+PyDoc_STRVAR(_hashlib_openssl_blake2b__doc__,
+"openssl_blake2b($module, /, data=b\'\', *, usedforsecurity=True,\n"
+"                string=None)\n"
+"--\n"
+"\n"
+"Returns a blake2b hash object; optionally initialized with a string");
+
+#define _HASHLIB_OPENSSL_BLAKE2B_METHODDEF    \
+    {"openssl_blake2b", _PyCFunction_CAST(_hashlib_openssl_blake2b), METH_FASTCALL|METH_KEYWORDS, _hashlib_openssl_blake2b__doc__},
+
+static PyObject *
+_hashlib_openssl_blake2b_impl(PyObject *module, PyObject *data,
+                              int usedforsecurity, PyObject *string);
+
+static PyObject *
+_hashlib_openssl_blake2b(PyObject *module, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames)
+{
+    PyObject *return_value = NULL;
+    #if defined(Py_BUILD_CORE) && !defined(Py_BUILD_CORE_MODULE)
+
+    #define NUM_KEYWORDS 3
+    static struct {
+        PyGC_Head _this_is_not_used;
+        PyObject_VAR_HEAD
+        Py_hash_t ob_hash;
+        PyObject *ob_item[NUM_KEYWORDS];
+    } _kwtuple = {
+        .ob_base = PyVarObject_HEAD_INIT(&PyTuple_Type, NUM_KEYWORDS)
+        .ob_hash = -1,
+        .ob_item = { &_Py_ID(data), &_Py_ID(usedforsecurity), &_Py_ID(string), },
+    };
+    #undef NUM_KEYWORDS
+    #define KWTUPLE (&_kwtuple.ob_base.ob_base)
+
+    #else  // !Py_BUILD_CORE
+    #  define KWTUPLE NULL
+    #endif  // !Py_BUILD_CORE
+
+    static const char * const _keywords[] = {"data", "usedforsecurity", "string", NULL};
+    static _PyArg_Parser _parser = {
+        .keywords = _keywords,
+        .fname = "openssl_blake2b",
+        .kwtuple = KWTUPLE,
+    };
+    #undef KWTUPLE
+    PyObject *argsbuf[3];
+    Py_ssize_t noptargs = nargs + (kwnames ? PyTuple_GET_SIZE(kwnames) : 0) - 0;
+    PyObject *data = NULL;
+    int usedforsecurity = 1;
+    PyObject *string = NULL;
+
+    args = _PyArg_UnpackKeywords(args, nargs, NULL, kwnames, &_parser,
+            /*minpos*/ 0, /*maxpos*/ 1, /*minkw*/ 0, /*varpos*/ 0, argsbuf);
+    if (!args) {
+        goto exit;
+    }
+    if (!noptargs) {
+        goto skip_optional_pos;
+    }
+    if (args[0]) {
+        data = args[0];
+        if (!--noptargs) {
+            goto skip_optional_pos;
+        }
+    }
+skip_optional_pos:
+    if (!noptargs) {
+        goto skip_optional_kwonly;
+    }
+    if (args[1]) {
+        usedforsecurity = PyObject_IsTrue(args[1]);
+        if (usedforsecurity < 0) {
+            goto exit;
+        }
+        if (!--noptargs) {
+            goto skip_optional_kwonly;
+        }
+    }
+    string = args[2];
+skip_optional_kwonly:
+    return_value = _hashlib_openssl_blake2b_impl(module, data, usedforsecurity, string);
+
+exit:
+    return return_value;
+}
+
+#endif /* defined(PY_OPENSSL_HAS_BLAKE2) */
+
+#if defined(PY_OPENSSL_HAS_BLAKE2)
+
+PyDoc_STRVAR(_hashlib_openssl_blake2s__doc__,
+"openssl_blake2s($module, /, data=b\'\', *, usedforsecurity=True,\n"
+"                string=None)\n"
+"--\n"
+"\n"
+"Returns a blake2s hash object; optionally initialized with a string");
+
+#define _HASHLIB_OPENSSL_BLAKE2S_METHODDEF    \
+    {"openssl_blake2s", _PyCFunction_CAST(_hashlib_openssl_blake2s), METH_FASTCALL|METH_KEYWORDS, _hashlib_openssl_blake2s__doc__},
+
+static PyObject *
+_hashlib_openssl_blake2s_impl(PyObject *module, PyObject *data,
+                              int usedforsecurity, PyObject *string);
+
+static PyObject *
+_hashlib_openssl_blake2s(PyObject *module, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames)
+{
+    PyObject *return_value = NULL;
+    #if defined(Py_BUILD_CORE) && !defined(Py_BUILD_CORE_MODULE)
+
+    #define NUM_KEYWORDS 3
+    static struct {
+        PyGC_Head _this_is_not_used;
+        PyObject_VAR_HEAD
+        Py_hash_t ob_hash;
+        PyObject *ob_item[NUM_KEYWORDS];
+    } _kwtuple = {
+        .ob_base = PyVarObject_HEAD_INIT(&PyTuple_Type, NUM_KEYWORDS)
+        .ob_hash = -1,
+        .ob_item = { &_Py_ID(data), &_Py_ID(usedforsecurity), &_Py_ID(string), },
+    };
+    #undef NUM_KEYWORDS
+    #define KWTUPLE (&_kwtuple.ob_base.ob_base)
+
+    #else  // !Py_BUILD_CORE
+    #  define KWTUPLE NULL
+    #endif  // !Py_BUILD_CORE
+
+    static const char * const _keywords[] = {"data", "usedforsecurity", "string", NULL};
+    static _PyArg_Parser _parser = {
+        .keywords = _keywords,
+        .fname = "openssl_blake2s",
+        .kwtuple = KWTUPLE,
+    };
+    #undef KWTUPLE
+    PyObject *argsbuf[3];
+    Py_ssize_t noptargs = nargs + (kwnames ? PyTuple_GET_SIZE(kwnames) : 0) - 0;
+    PyObject *data = NULL;
+    int usedforsecurity = 1;
+    PyObject *string = NULL;
+
+    args = _PyArg_UnpackKeywords(args, nargs, NULL, kwnames, &_parser,
+            /*minpos*/ 0, /*maxpos*/ 1, /*minkw*/ 0, /*varpos*/ 0, argsbuf);
+    if (!args) {
+        goto exit;
+    }
+    if (!noptargs) {
+        goto skip_optional_pos;
+    }
+    if (args[0]) {
+        data = args[0];
+        if (!--noptargs) {
+            goto skip_optional_pos;
+        }
+    }
+skip_optional_pos:
+    if (!noptargs) {
+        goto skip_optional_kwonly;
+    }
+    if (args[1]) {
+        usedforsecurity = PyObject_IsTrue(args[1]);
+        if (usedforsecurity < 0) {
+            goto exit;
+        }
+        if (!--noptargs) {
+            goto skip_optional_kwonly;
+        }
+    }
+    string = args[2];
+skip_optional_kwonly:
+    return_value = _hashlib_openssl_blake2s_impl(module, data, usedforsecurity, string);
+
+exit:
+    return return_value;
+}
+
+#endif /* defined(PY_OPENSSL_HAS_BLAKE2) */
+
 #if defined(PY_OPENSSL_HAS_SHA3)
 
 PyDoc_STRVAR(_hashlib_openssl_sha3_224__doc__,
@@ -1963,6 +2143,14 @@ exit:
     #define _HASHLIB_HASHXOF_HEXDIGEST_METHODDEF
 #endif /* !defined(_HASHLIB_HASHXOF_HEXDIGEST_METHODDEF) */
 
+#ifndef _HASHLIB_OPENSSL_BLAKE2B_METHODDEF
+    #define _HASHLIB_OPENSSL_BLAKE2B_METHODDEF
+#endif /* !defined(_HASHLIB_OPENSSL_BLAKE2B_METHODDEF) */
+
+#ifndef _HASHLIB_OPENSSL_BLAKE2S_METHODDEF
+    #define _HASHLIB_OPENSSL_BLAKE2S_METHODDEF
+#endif /* !defined(_HASHLIB_OPENSSL_BLAKE2S_METHODDEF) */
+
 #ifndef _HASHLIB_OPENSSL_SHA3_224_METHODDEF
     #define _HASHLIB_OPENSSL_SHA3_224_METHODDEF
 #endif /* !defined(_HASHLIB_OPENSSL_SHA3_224_METHODDEF) */
@@ -1986,4 +2174,4 @@ exit:
 #ifndef _HASHLIB_OPENSSL_SHAKE_256_METHODDEF
     #define _HASHLIB_OPENSSL_SHAKE_256_METHODDEF
 #endif /* !defined(_HASHLIB_OPENSSL_SHAKE_256_METHODDEF) */
-/*[clinic end generated code: output=cf405e652a340bb2 input=a9049054013a1b77]*/
+/*[clinic end generated code: output=d77c80da20623e98 input=a9049054013a1b77]*/
