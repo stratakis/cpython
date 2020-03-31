@@ -336,6 +336,7 @@ static PyGetSetDef Hmac_getset[] = {
 
 static PyMemberDef Hmac_members[] = {
     {"name", T_OBJECT, offsetof(HmacObject, name), READONLY, PyDoc_STR("HMAC name")},
+    {NULL} /* Sentinel */
 };
 
 PyDoc_STRVAR(hmactype_doc,
