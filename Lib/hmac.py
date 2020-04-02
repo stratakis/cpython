@@ -143,8 +143,6 @@ class HMAC:
         return h.hexdigest()
 
 def _get_openssl_name(digestmod):
-    if digestmod is None:
-        raise ValueError("'digestmod' argument is mandatory in FIPS mode")
     if isinstance(digestmod, str):
         return digestmod.lower()
     elif callable(digestmod):
