@@ -132,12 +132,12 @@ error:
 /*[clinic input]
 _hmacopenssl.HMAC.copy
 
-Return a copy (“clone”) of the HMAC object.
+Return a copy ("clone") of the HMAC object.
 [clinic start generated code]*/
 
 static PyObject *
 _hmacopenssl_HMAC_copy_impl(HmacObject *self)
-/*[clinic end generated code: output=fe5ee41faf30dcf0 input=f5ed20feec42d8d0]*/
+/*[clinic end generated code: output=fe5ee41faf30dcf0 input=06e7dbc1af7f4a13]*/
 {
     HmacObject *retval;
 
