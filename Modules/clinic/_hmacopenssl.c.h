@@ -6,7 +6,7 @@ PyDoc_STRVAR(_hmacopenssl_HMAC_copy__doc__,
 "copy($self, /)\n"
 "--\n"
 "\n"
-"Return a copy (“clone”) of the HMAC object.");
+"Return a copy (\"clone\") of the HMAC object.");
 
 #define _HMACOPENSSL_HMAC_COPY_METHODDEF    \
     {"copy", (PyCFunction)_hmacopenssl_HMAC_copy, METH_NOARGS, _hmacopenssl_HMAC_copy__doc__},
@@ -27,21 +27,29 @@ PyDoc_STRVAR(_hmacopenssl_HMAC_update__doc__,
 "Update the HMAC object with msg.");
 
 #define _HMACOPENSSL_HMAC_UPDATE_METHODDEF    \
-    {"update", (PyCFunction)_hmacopenssl_HMAC_update, METH_FASTCALL, _hmacopenssl_HMAC_update__doc__},
+    {"update", (PyCFunction)(void(*)(void))_hmacopenssl_HMAC_update, METH_FASTCALL|METH_KEYWORDS, _hmacopenssl_HMAC_update__doc__},
 
 static PyObject *
 _hmacopenssl_HMAC_update_impl(HmacObject *self, Py_buffer *msg);
 
 static PyObject *
-_hmacopenssl_HMAC_update(HmacObject *self, PyObject **args, Py_ssize_t nargs, PyObject *kwnames)
+_hmacopenssl_HMAC_update(HmacObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames)
 {
     PyObject *return_value = NULL;
     static const char * const _keywords[] = {"msg", NULL};
-    static _PyArg_Parser _parser = {"y*:update", _keywords, 0};
+    static _PyArg_Parser _parser = {NULL, _keywords, "update", 0};
+    PyObject *argsbuf[1];
     Py_buffer msg = {NULL, NULL};
 
-    if (!_PyArg_ParseStack(args, nargs, kwnames, &_parser,
-        &msg)) {
+    args = _PyArg_UnpackKeywords(args, nargs, NULL, kwnames, &_parser, 1, 1, 0, argsbuf);
+    if (!args) {
+        goto exit;
+    }
+    if (PyObject_GetBuffer(args[0], &msg, PyBUF_SIMPLE) != 0) {
+        goto exit;
+    }
+    if (!PyBuffer_IsContiguous(&msg, 'C')) {
+        _PyArg_BadArgument("update", "argument 'msg'", "contiguous buffer", args[0]);
         goto exit;
     }
     return_value = _hmacopenssl_HMAC_update_impl(self, &msg);
@@ -93,4 +101,4 @@ _hmacopenssl_HMAC_hexdigest(HmacObject *self, PyObject *Py_UNUSED(ignored))
 {
     return _hmacopenssl_HMAC_hexdigest_impl(self);
 }
-/*[clinic end generated code: output=d93ad460795d49b5 input=a9049054013a1b77]*/
+/*[clinic end generated code: output=9b75c31e1116bf6f input=a9049054013a1b77]*/
