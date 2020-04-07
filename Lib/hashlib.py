@@ -171,7 +171,7 @@ def __hash_new(name, data=b'', **kwargs):
         # the OpenSSL library prior to 0.9.8 doesn't provide them.
         if _hashlib.get_fips_mode():
             raise
-        return __get_builtin_constructor(name)(data)
+        return __get_builtin_constructor(name)(data, **kwargs)
 
 
 try:
