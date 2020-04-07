@@ -239,14 +239,22 @@ class HashLibTestCase(unittest.TestCase):
         self.assertTrue(set(hashlib.algorithms_guaranteed).
                             issubset(hashlib.algorithms_available))
 
-    def test_usedforsecurity(self):
+    def test_usedforsecurity_false(self):
         for cons in self.hash_constructors:
-            cons(usedforsecurity=True)
             cons(usedforsecurity=False)
-            cons(b'', usedforsecurity=True)
             cons(b'', usedforsecurity=False)
-        hashlib.new("sha256", usedforsecurity=True)
         hashlib.new("sha256", usedforsecurity=False)
+
+    def test_usedforsecurity_true(self):
+        if _get_fips_mode():
+            with self.assertRaises(ValueError):
+                hashlib.new("md5", usedforsecurity=True)
+        else:
+            for cons in self.hash_constructors:
+                cons(usedforsecurity=True)
+                cons(b'', usedforsecurity=True)
+
+        hashlib.new("sha256", usedforsecurity=True)
 
     def test_unknown_hash(self):
         self.assertRaises(ValueError, hashlib.new, 'spam spam spam spam spam')
