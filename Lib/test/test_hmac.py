@@ -315,14 +315,15 @@ class TestVectorsTestCase(unittest.TestCase):
 
     def test_with_digestmod_no_default(self):
         """The digestmod parameter is required as of Python 3.8."""
-        with self.assertRaisesRegex(TypeError, r'required.*digestmod'):
+        with self.assertRaises(TypeError):
             key = b"\x0b" * 16
             data = b"Hi There"
             hmac.HMAC(key, data, digestmod=None)
-        with self.assertRaisesRegex(TypeError, r'required.*digestmod'):
-            hmac.new(key, data)
-        with self.assertRaisesRegex(TypeError, r'required.*digestmod'):
-            hmac.HMAC(key, msg=data, digestmod='')
+        if not get_fips_mode():
+            with self.assertRaisesRegex(TypeError, r'required.*digestmod'):
+                hmac.new(key, data)
+            with self.assertRaisesRegex(TypeError, r'required.*digestmod'):
+                hmac.HMAC(key, msg=data, digestmod='')
 
 
 class ConstructorTestCase(unittest.TestCase):
