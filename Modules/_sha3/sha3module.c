@@ -710,8 +710,6 @@ PyInit__sha3(void)
 {
     PyObject *m = NULL;
 
-    FAIL_RETURN_IN_FIPS_MODE(PyExc_ImportError, "_sha3");
-
     if ((m = PyModule_Create(&_SHA3module)) == NULL) {
         return NULL;
     }

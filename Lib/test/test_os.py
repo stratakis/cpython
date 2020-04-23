@@ -28,7 +28,6 @@ import time
 import unittest
 import uuid
 import warnings
-from _hashlib import get_fips_mode
 from test import support
 from platform import win32_is_iot
 
@@ -1545,11 +1544,6 @@ class GetRandomTests(unittest.TestCase):
                 # Python compiled on a more recent Linux version
                 # than the current Linux kernel
                 raise unittest.SkipTest("getrandom() syscall fails with ENOSYS")
-            else:
-                raise
-        except ValueError as exc:
-            if get_fips_mode() and exc.args[0] == "getrandom is not FIPS compliant":
-                raise unittest.SkipTest("Skip in FIPS mode")
             else:
                 raise
 
