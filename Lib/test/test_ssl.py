@@ -20,6 +20,7 @@ import weakref
 import platform
 import sysconfig
 import functools
+from _hashlib import get_fips_mode
 try:
     import ctypes
 except ImportError:
@@ -30,6 +31,11 @@ ssl = support.import_module("ssl")
 from ssl import TLSVersion, _TLSContentType, _TLSMessageType
 
 PROTOCOLS = sorted(ssl._PROTOCOL_NAMES)
+if get_fips_mode():
+    for protocol in PROTOCOLS:
+        if "SSLv3" in str(protocol):
+            PROTOCOLS.remove(protocol)
+
 HOST = support.HOST
 IS_LIBRESSL = ssl.OPENSSL_VERSION.startswith('LibreSSL')
 IS_OPENSSL_1_1_0 = not IS_LIBRESSL and ssl.OPENSSL_VERSION_INFO >= (1, 1, 0)
@@ -3217,36 +3223,41 @@ class ThreadedTests(unittest.TestCase):
         if support.verbose:
             sys.stdout.write("\n")
         if has_tls_version('SSLv2'):
-            try:
-                try_protocol_combo(ssl.PROTOCOL_TLS, ssl.PROTOCOL_SSLv2, True)
-            except OSError as x:
-                # this fails on some older versions of OpenSSL (0.9.7l, for instance)
-                if support.verbose:
-                    sys.stdout.write(
-                        " SSL2 client to SSL23 server test unexpectedly failed:\n %s\n"
-                        % str(x))
+            if not get_fips_mode():
+                try:
+                    try_protocol_combo(ssl.PROTOCOL_TLS, ssl.PROTOCOL_SSLv2, True)
+                except OSError as x:
+                    # this fails on some older versions of OpenSSL (0.9.7l, for instance)
+                    if support.verbose:
+                        sys.stdout.write(
+                            " SSL2 client to SSL23 server test unexpectedly failed:\n %s\n"
+                            % str(x))
         if has_tls_version('SSLv3'):
-            try_protocol_combo(ssl.PROTOCOL_TLS, ssl.PROTOCOL_SSLv3, False)
+            if not get_fips_mode():
+                try_protocol_combo(ssl.PROTOCOL_TLS, ssl.PROTOCOL_SSLv3, False)
         try_protocol_combo(ssl.PROTOCOL_TLS, ssl.PROTOCOL_TLS, True)
         if has_tls_version('TLSv1'):
             try_protocol_combo(ssl.PROTOCOL_TLS, ssl.PROTOCOL_TLSv1, 'TLSv1')
 
         if has_tls_version('SSLv3'):
-            try_protocol_combo(ssl.PROTOCOL_TLS, ssl.PROTOCOL_SSLv3, False, ssl.CERT_OPTIONAL)
+            if not get_fips_mode():
+                try_protocol_combo(ssl.PROTOCOL_TLS, ssl.PROTOCOL_SSLv3, False, ssl.CERT_OPTIONAL)
         try_protocol_combo(ssl.PROTOCOL_TLS, ssl.PROTOCOL_TLS, True, ssl.CERT_OPTIONAL)
         if has_tls_version('TLSv1'):
             try_protocol_combo(ssl.PROTOCOL_TLS, ssl.PROTOCOL_TLSv1, 'TLSv1', ssl.CERT_OPTIONAL)
 
         if has_tls_version('SSLv3'):
-            try_protocol_combo(ssl.PROTOCOL_TLS, ssl.PROTOCOL_SSLv3, False, ssl.CERT_REQUIRED)
+            if not get_fips_mode():
+                try_protocol_combo(ssl.PROTOCOL_TLS, ssl.PROTOCOL_SSLv3, False, ssl.CERT_REQUIRED)
         try_protocol_combo(ssl.PROTOCOL_TLS, ssl.PROTOCOL_TLS, True, ssl.CERT_REQUIRED)
         if has_tls_version('TLSv1'):
             try_protocol_combo(ssl.PROTOCOL_TLS, ssl.PROTOCOL_TLSv1, 'TLSv1', ssl.CERT_REQUIRED)
 
         # Server with specific SSL options
         if has_tls_version('SSLv3'):
-            try_protocol_combo(ssl.PROTOCOL_TLS, ssl.PROTOCOL_SSLv3, False,
-                           server_options=ssl.OP_NO_SSLv3)
+            if not get_fips_mode():
+                try_protocol_combo(ssl.PROTOCOL_TLS, ssl.PROTOCOL_SSLv3, False,
+                               server_options=ssl.OP_NO_SSLv3)
         # Will choose TLSv1
         try_protocol_combo(ssl.PROTOCOL_TLS, ssl.PROTOCOL_TLS, True,
                            server_options=ssl.OP_NO_SSLv2 | ssl.OP_NO_SSLv3)
@@ -3254,6 +3265,7 @@ class ThreadedTests(unittest.TestCase):
             try_protocol_combo(ssl.PROTOCOL_TLS, ssl.PROTOCOL_TLSv1, False,
                                server_options=ssl.OP_NO_TLSv1)
 
+    @unittest.skipIf(get_fips_mode(), "SSLv3 is disabled on runtime on FIPS mode")
     @requires_tls_version('SSLv3')
     def test_protocol_sslv3(self):
         """Connecting to an SSLv3 server with various client options"""
@@ -3283,7 +3295,8 @@ class ThreadedTests(unittest.TestCase):
         if has_tls_version('SSLv2'):
             try_protocol_combo(ssl.PROTOCOL_TLSv1, ssl.PROTOCOL_SSLv2, False)
         if has_tls_version('SSLv3'):
-            try_protocol_combo(ssl.PROTOCOL_TLSv1, ssl.PROTOCOL_SSLv3, False)
+            if not get_fips_mode():
+                try_protocol_combo(ssl.PROTOCOL_TLSv1, ssl.PROTOCOL_SSLv3, False)
         try_protocol_combo(ssl.PROTOCOL_TLSv1, ssl.PROTOCOL_TLS, False,
                            client_options=ssl.OP_NO_TLSv1)
 
@@ -3297,7 +3310,8 @@ class ThreadedTests(unittest.TestCase):
         if has_tls_version('SSLv2'):
             try_protocol_combo(ssl.PROTOCOL_TLSv1_1, ssl.PROTOCOL_SSLv2, False)
         if has_tls_version('SSLv3'):
-            try_protocol_combo(ssl.PROTOCOL_TLSv1_1, ssl.PROTOCOL_SSLv3, False)
+            if not get_fips_mode():
+                try_protocol_combo(ssl.PROTOCOL_TLSv1_1, ssl.PROTOCOL_SSLv3, False)
         try_protocol_combo(ssl.PROTOCOL_TLSv1_1, ssl.PROTOCOL_TLS, False,
                            client_options=ssl.OP_NO_TLSv1_1)
 
@@ -3317,7 +3331,8 @@ class ThreadedTests(unittest.TestCase):
         if has_tls_version('SSLv2'):
             try_protocol_combo(ssl.PROTOCOL_TLSv1_2, ssl.PROTOCOL_SSLv2, False)
         if has_tls_version('SSLv3'):
-            try_protocol_combo(ssl.PROTOCOL_TLSv1_2, ssl.PROTOCOL_SSLv3, False)
+            if not get_fips_mode():
+                try_protocol_combo(ssl.PROTOCOL_TLSv1_2, ssl.PROTOCOL_SSLv3, False)
         try_protocol_combo(ssl.PROTOCOL_TLSv1_2, ssl.PROTOCOL_TLS, False,
                            client_options=ssl.OP_NO_TLSv1_2)
 
