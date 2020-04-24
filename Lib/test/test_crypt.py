@@ -53,8 +53,6 @@ class CryptTestCase(unittest.TestCase):
         self.assertTrue(len(crypt.methods) >= 1)
         if sys.platform.startswith('openbsd'):
             self.assertEqual(crypt.methods, [crypt.METHOD_BLOWFISH])
-        else:
-            self.assertEqual(crypt.methods[-1], crypt.METHOD_CRYPT)
 
     @unittest.skipUnless(
         crypt
