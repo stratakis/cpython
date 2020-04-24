@@ -2,6 +2,7 @@
 #define Py_HASHOPENSSL_H
 
 #include "Python.h"
+#include <openssl/ssl.h>
 #include <openssl/crypto.h>
 #include <openssl/err.h>
 
