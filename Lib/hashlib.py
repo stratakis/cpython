@@ -81,13 +81,7 @@ __block_openssl_constructor = {'sha3_224', 'sha3_256', 'sha3_384', 'sha3_512',
 
 __builtin_constructor_cache = {}
 
-def __get_builtin_constructor(name):
-    try:
-        from _hashlib import get_fips_mode as _hashlib_get_fips_mode
-    except ImportError:
-        def _hashlib_get_fips_mode():
-            return 0
-
+def __get_builtin_constructor(name, *, _hashlib_get_fips_mode=_hashlib_get_fips_mode):
     cache = __builtin_constructor_cache
     constructor = cache.get(name)
     if constructor is not None:
