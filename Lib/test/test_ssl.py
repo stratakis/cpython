@@ -18,6 +18,7 @@ import asyncore
 import weakref
 import platform
 import functools
+from _hashlib import get_fips_mode
 try:
     import ctypes
 except ImportError:
@@ -33,6 +34,11 @@ else:
     _have_threads = True
 
 PROTOCOLS = sorted(ssl._PROTOCOL_NAMES)
+if get_fips_mode():
+    for protocol in PROTOCOLS:
+        if "SSLv3" in str(protocol):
+            PROTOCOLS.remove(protocol)
+
 HOST = support.HOST
 IS_LIBRESSL = ssl.OPENSSL_VERSION.startswith('LibreSSL')
 IS_OPENSSL_1_1 = not IS_LIBRESSL and ssl.OPENSSL_VERSION_INFO >= (1, 1, 0)
@@ -2578,8 +2584,9 @@ if _have_threads:
             try_protocol_combo(ssl.PROTOCOL_SSLv2, ssl.PROTOCOL_SSLv2, True, ssl.CERT_OPTIONAL)
             try_protocol_combo(ssl.PROTOCOL_SSLv2, ssl.PROTOCOL_SSLv2, True, ssl.CERT_REQUIRED)
             try_protocol_combo(ssl.PROTOCOL_SSLv2, ssl.PROTOCOL_SSLv23, False)
-            if hasattr(ssl, 'PROTOCOL_SSLv3'):
-                try_protocol_combo(ssl.PROTOCOL_SSLv2, ssl.PROTOCOL_SSLv3, False)
+            if not get_fips_mode():
+                if hasattr(ssl, 'PROTOCOL_SSLv3'):
+                    try_protocol_combo(ssl.PROTOCOL_SSLv2, ssl.PROTOCOL_SSLv3, False)
             try_protocol_combo(ssl.PROTOCOL_SSLv2, ssl.PROTOCOL_TLSv1, False)
             # SSLv23 client with specific SSL options
             if no_sslv2_implies_sslv3_hello():
@@ -2605,25 +2612,29 @@ if _have_threads:
                         sys.stdout.write(
                             " SSL2 client to SSL23 server test unexpectedly failed:\n %s\n"
                             % str(x))
-            if hasattr(ssl, 'PROTOCOL_SSLv3'):
-                try_protocol_combo(ssl.PROTOCOL_SSLv23, ssl.PROTOCOL_SSLv3, False)
+            if not get_fips_mode():
+                if hasattr(ssl, 'PROTOCOL_SSLv3'):
+                    try_protocol_combo(ssl.PROTOCOL_SSLv23, ssl.PROTOCOL_SSLv3, False)
             try_protocol_combo(ssl.PROTOCOL_SSLv23, ssl.PROTOCOL_SSLv23, True)
             try_protocol_combo(ssl.PROTOCOL_SSLv23, ssl.PROTOCOL_TLSv1, 'TLSv1')
 
-            if hasattr(ssl, 'PROTOCOL_SSLv3'):
-                try_protocol_combo(ssl.PROTOCOL_SSLv23, ssl.PROTOCOL_SSLv3, False, ssl.CERT_OPTIONAL)
+            if not get_fips_mode():
+                if hasattr(ssl, 'PROTOCOL_SSLv3'):
+                    try_protocol_combo(ssl.PROTOCOL_SSLv23, ssl.PROTOCOL_SSLv3, False, ssl.CERT_OPTIONAL)
             try_protocol_combo(ssl.PROTOCOL_SSLv23, ssl.PROTOCOL_SSLv23, True, ssl.CERT_OPTIONAL)
             try_protocol_combo(ssl.PROTOCOL_SSLv23, ssl.PROTOCOL_TLSv1, 'TLSv1', ssl.CERT_OPTIONAL)
 
-            if hasattr(ssl, 'PROTOCOL_SSLv3'):
-                try_protocol_combo(ssl.PROTOCOL_SSLv23, ssl.PROTOCOL_SSLv3, False, ssl.CERT_REQUIRED)
+            if not get_fips_mode():
+                if hasattr(ssl, 'PROTOCOL_SSLv3'):
+                    try_protocol_combo(ssl.PROTOCOL_SSLv23, ssl.PROTOCOL_SSLv3, False, ssl.CERT_REQUIRED)
             try_protocol_combo(ssl.PROTOCOL_SSLv23, ssl.PROTOCOL_SSLv23, True, ssl.CERT_REQUIRED)
             try_protocol_combo(ssl.PROTOCOL_SSLv23, ssl.PROTOCOL_TLSv1, 'TLSv1', ssl.CERT_REQUIRED)
 
             # Server with specific SSL options
-            if hasattr(ssl, 'PROTOCOL_SSLv3'):
-                try_protocol_combo(ssl.PROTOCOL_SSLv23, ssl.PROTOCOL_SSLv3, False,
-                               server_options=ssl.OP_NO_SSLv3)
+            if not get_fips_mode():
+                if hasattr(ssl, 'PROTOCOL_SSLv3'):
+                    try_protocol_combo(ssl.PROTOCOL_SSLv23, ssl.PROTOCOL_SSLv3, False,
+                                   server_options=ssl.OP_NO_SSLv3)
             # Will choose TLSv1
             try_protocol_combo(ssl.PROTOCOL_SSLv23, ssl.PROTOCOL_SSLv23, True,
                                server_options=ssl.OP_NO_SSLv2 | ssl.OP_NO_SSLv3)
@@ -2632,6 +2643,7 @@ if _have_threads:
 
 
         @skip_if_broken_ubuntu_ssl
+        @unittest.skipIf(get_fips_mode(), "OpenSSL disabled SSLv3 at runtime under FIPS mode")
         @unittest.skipUnless(hasattr(ssl, 'PROTOCOL_SSLv3'),
                              "OpenSSL is compiled without SSLv3 support")
         def test_protocol_sslv3(self):
@@ -2661,8 +2673,9 @@ if _have_threads:
             try_protocol_combo(ssl.PROTOCOL_TLSv1, ssl.PROTOCOL_TLSv1, 'TLSv1', ssl.CERT_REQUIRED)
             if hasattr(ssl, 'PROTOCOL_SSLv2'):
                 try_protocol_combo(ssl.PROTOCOL_TLSv1, ssl.PROTOCOL_SSLv2, False)
-            if hasattr(ssl, 'PROTOCOL_SSLv3'):
-                try_protocol_combo(ssl.PROTOCOL_TLSv1, ssl.PROTOCOL_SSLv3, False)
+            if not get_fips_mode():
+                if hasattr(ssl, 'PROTOCOL_SSLv3'):
+                    try_protocol_combo(ssl.PROTOCOL_TLSv1, ssl.PROTOCOL_SSLv3, False)
             try_protocol_combo(ssl.PROTOCOL_TLSv1, ssl.PROTOCOL_SSLv23, False,
                                client_options=ssl.OP_NO_TLSv1)
 
@@ -2677,8 +2690,9 @@ if _have_threads:
             try_protocol_combo(ssl.PROTOCOL_TLSv1_1, ssl.PROTOCOL_TLSv1_1, 'TLSv1.1')
             if hasattr(ssl, 'PROTOCOL_SSLv2'):
                 try_protocol_combo(ssl.PROTOCOL_TLSv1_1, ssl.PROTOCOL_SSLv2, False)
-            if hasattr(ssl, 'PROTOCOL_SSLv3'):
-                try_protocol_combo(ssl.PROTOCOL_TLSv1_1, ssl.PROTOCOL_SSLv3, False)
+            if not get_fips_mode():
+                if hasattr(ssl, 'PROTOCOL_SSLv3'):
+                    try_protocol_combo(ssl.PROTOCOL_TLSv1_1, ssl.PROTOCOL_SSLv3, False)
             try_protocol_combo(ssl.PROTOCOL_TLSv1_1, ssl.PROTOCOL_SSLv23, False,
                                client_options=ssl.OP_NO_TLSv1_1)
 
@@ -2700,8 +2714,9 @@ if _have_threads:
                                client_options=ssl.OP_NO_SSLv3|ssl.OP_NO_SSLv2,)
             if hasattr(ssl, 'PROTOCOL_SSLv2'):
                 try_protocol_combo(ssl.PROTOCOL_TLSv1_2, ssl.PROTOCOL_SSLv2, False)
-            if hasattr(ssl, 'PROTOCOL_SSLv3'):
-                try_protocol_combo(ssl.PROTOCOL_TLSv1_2, ssl.PROTOCOL_SSLv3, False)
+            if not get_fips_mode():
+                if hasattr(ssl, 'PROTOCOL_SSLv3'):
+                    try_protocol_combo(ssl.PROTOCOL_TLSv1_2, ssl.PROTOCOL_SSLv3, False)
             try_protocol_combo(ssl.PROTOCOL_TLSv1_2, ssl.PROTOCOL_SSLv23, False,
                                client_options=ssl.OP_NO_TLSv1_2)
 
