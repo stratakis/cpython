@@ -76,7 +76,7 @@ except ImportError:
 
 __builtin_constructor_cache = {}
 
-def __get_builtin_constructor(name):
+def __get_builtin_constructor(name, *, _hashlib_get_fips_mode=_hashlib_get_fips_mode):
     cache = __builtin_constructor_cache
     constructor = cache.get(name)
     if constructor is not None:
