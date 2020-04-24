@@ -364,6 +364,7 @@ class TestVectorsTestCase(unittest.TestCase):
                 hmac.HMAC(b'a', b'b', digestmod=MockCrazyHash)
                 self.fail('Expected warning about small block_size')
 
+    @unittest.skipIf(get_fips_mode(), "digestmod misuse raises different errors under FIPS mode")
     def test_with_digestmod_no_default(self):
         """The digestmod parameter is required as of Python 3.8."""
         with self.assertRaisesRegex(TypeError, r'required.*digestmod'):
@@ -373,6 +374,18 @@ class TestVectorsTestCase(unittest.TestCase):
         with self.assertRaisesRegex(TypeError, r'required.*digestmod'):
             hmac.new(key, data)
         with self.assertRaisesRegex(TypeError, r'required.*digestmod'):
+            hmac.HMAC(key, msg=data, digestmod='')
+
+    @unittest.skipIf(not get_fips_mode(), "test is run only under FIPS mode")
+    def test_with_digestmod_no_default_under_fips(self):
+        """Test the error values of digestmod misuse under FIPS mode."""
+        with self.assertRaises(TypeError):
+            key = b"\x0b" * 16
+            data = b"Hi There"
+            hmac.HMAC(key, data, digestmod=None)
+        with self.assertRaises(ValueError):
+            hmac.new(key, data)
+        with self.assertRaises(ValueError):
             hmac.HMAC(key, msg=data, digestmod='')
 
 
