@@ -14,6 +14,7 @@ import importlib
 import itertools
 import os
 import sys
+from _hashlib import get_fips_mode
 try:
     import threading
 except ImportError:
@@ -262,6 +263,8 @@ class HashLibTestCase(unittest.TestCase):
     def test_name_attribute(self):
         for cons in self.hash_constructors:
             h = cons()
+            if get_fips_mode() and h.name == "md5":
+                continue
             self.assertIsInstance(h.name, str)
             if h.name in self.supported_hash_names:
                 self.assertIn(h.name, self.supported_hash_names)
