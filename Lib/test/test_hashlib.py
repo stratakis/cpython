@@ -14,7 +14,6 @@ import importlib
 import itertools
 import os
 import sys
-from _hashlib import get_fips_mode
 try:
     import threading
 except ImportError:
@@ -32,6 +31,8 @@ COMPILED_WITH_PYDEBUG = hasattr(sys, 'gettotalrefcount')
 c_hashlib = import_fresh_module('hashlib', fresh=['_hashlib'])
 # skipped on Fedora, since we always use OpenSSL implementation
 # py_hashlib = import_fresh_module('hashlib', blocked=['_hashlib'])
+
+from _hashlib import get_fips_mode as _get_fips_mode
 
 def openssl_enforces_fips():
     # Use the "openssl" command (if present) to try to determine if the local
@@ -263,7 +264,7 @@ class HashLibTestCase(unittest.TestCase):
     def test_name_attribute(self):
         for cons in self.hash_constructors:
             h = cons()
-            if get_fips_mode() and h.name == "md5":
+            if _get_fips_mode() and h.name == "md5":
                 continue
             self.assertIsInstance(h.name, str)
             if h.name in self.supported_hash_names:

@@ -274,7 +274,7 @@ class TestVectorsTestCase(unittest.TestCase):
                 hmac.HMAC(b'a', b'b', digestmod=MockCrazyHash)
                 self.fail('Expected warning about small block_size')
 
-    @unittest.skipIf(get_fips_mode(), "hash digest 'md5' is not available.")
+    @unittest.skipIf(get_fips_mode(), 'md5 is not default in FIPS mode.')
     def test_with_digestmod_warning(self):
         with self.assertWarns(PendingDeprecationWarning):
             key = b"\x0b" * 16

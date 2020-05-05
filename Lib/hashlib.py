@@ -267,9 +267,10 @@ except ImportError:
     pass
 
 try:
-    from _hashlib import get_fips_mode
+    from _hashlib import get_fips_mode as _hashlib_get_fips_mode
 except ImportError:
-    pass
+    def _hashlib_get_fips_mode():
+        return 0
 
 
 for __func_name in __always_supported:
