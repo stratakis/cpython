@@ -980,7 +980,12 @@ class SMTPSimTests(unittest.TestCase):
 
     def testAUTH_multiple(self):
         # Test that multiple authentication methods are tried.
-        self.serv.add_feature("AUTH BOGUS PLAIN LOGIN CRAM-MD5")
+        try:
+            hashlib.md5()
+        except ValueError:
+            self.serv.add_feature("AUTH BOGUS PLAIN LOGIN")
+        else:
+            self.serv.add_feature("AUTH BOGUS PLAIN LOGIN CRAM-MD5")
         smtp = smtplib.SMTP(HOST, self.port, local_hostname='localhost', timeout=15)
         resp = smtp.login(sim_auth[0], sim_auth[1])
         self.assertEqual(resp, (235, b'Authentication Succeeded'))
