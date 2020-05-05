@@ -3,6 +3,7 @@ import hmac
 import hashlib
 import unittest
 import warnings
+from _hashlib import get_fips_mode
 
 from test.support import requires_hashdigest
 
@@ -273,6 +274,7 @@ class TestVectorsTestCase(unittest.TestCase):
                 hmac.HMAC(b'a', b'b', digestmod=MockCrazyHash)
                 self.fail('Expected warning about small block_size')
 
+    @unittest.skipIf(get_fips_mode(), "hash digest 'md5' is not available.")
     def test_with_digestmod_warning(self):
         with self.assertWarns(PendingDeprecationWarning):
             key = b"\x0b" * 16
