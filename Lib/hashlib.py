@@ -74,15 +74,15 @@ except ImportError:
         return 0
 
 
-if not _hashlib_get_fips_mode():
-    __builtin_constructor_cache = {}
+__builtin_constructor_cache = {}
 
-    def __get_builtin_constructor(name):
-        cache = __builtin_constructor_cache
-        constructor = cache.get(name)
-        if constructor is not None:
-            return constructor
-        try:
+def __get_builtin_constructor(name):
+    cache = __builtin_constructor_cache
+    constructor = cache.get(name)
+    if constructor is not None:
+        return constructor
+    try:
+        if not _hashlib_get_fips_mode():
             if name in ('SHA1', 'sha1'):
                 import _sha1
                 cache['SHA1'] = cache['sha1'] = _sha1.sha1
@@ -97,34 +97,33 @@ if not _hashlib_get_fips_mode():
                 import _sha512
                 cache['SHA384'] = cache['sha384'] = _sha512.sha384
                 cache['SHA512'] = cache['sha512'] = _sha512.sha512
-            elif name in ('blake2b', 'blake2s'):
-                import _blake2
-                cache['blake2b'] = _blake2.blake2b
-                cache['blake2s'] = _blake2.blake2s
-            elif name in {'sha3_224', 'sha3_256', 'sha3_384', 'sha3_512',
-                          'shake_128', 'shake_256'}:
-                import _sha3
-                cache['sha3_224'] = _sha3.sha3_224
-                cache['sha3_256'] = _sha3.sha3_256
-                cache['sha3_384'] = _sha3.sha3_384
-                cache['sha3_512'] = _sha3.sha3_512
-                cache['shake_128'] = _sha3.shake_128
-                cache['shake_256'] = _sha3.shake_256
-        except ImportError:
-            pass  # no extension module, this hash is unsupported.
+        if name in ('blake2b', 'blake2s'):
+            import _blake2
+            cache['blake2b'] = _blake2.blake2b
+            cache['blake2s'] = _blake2.blake2s
+        elif name in {'sha3_224', 'sha3_256', 'sha3_384', 'sha3_512',
+                      'shake_128', 'shake_256'}:
+            import _sha3
+            cache['sha3_224'] = _sha3.sha3_224
+            cache['sha3_256'] = _sha3.sha3_256
+            cache['sha3_384'] = _sha3.sha3_384
+            cache['sha3_512'] = _sha3.sha3_512
+            cache['shake_128'] = _sha3.shake_128
+            cache['shake_256'] = _sha3.shake_256
+    except ImportError:
+        pass  # no extension module, this hash is unsupported.
 
-        constructor = cache.get(name)
-        if constructor is not None:
-            return constructor
+    constructor = cache.get(name)
+    if constructor is not None:
+        return constructor
 
-        raise ValueError('unsupported hash type ' + name)
+    raise ValueError('unsupported hash type ' + name)
 
 
 def __get_openssl_constructor(name):
-    if not _hashlib.get_fips_mode():
-        if name in {
+    if name in {
             'blake2b', 'blake2s', 'shake_256', 'shake_128',
-            #'sha3_224', 'sha3_256', 'sha3_384', 'sha3_512',
+            'sha3_224', 'sha3_256', 'sha3_384', 'sha3_512',
         }:
             # Prefer our blake2 implementation.
             return __get_builtin_constructor(name)
@@ -197,8 +196,6 @@ try:
     algorithms_available = algorithms_available.union(
             _hashlib.openssl_md_meth_names)
 except ImportError:
-    if _hashlib_get_fips_mode():
-        raise
     new = __py_new
     __get_hash = __get_builtin_constructor
 
@@ -218,8 +215,9 @@ for __func_name in __always_supported:
     try:
         globals()[__func_name] = __get_hash(__func_name)
     except ValueError:
-        import logging
-        logging.exception('code for hash %s was not found.', __func_name)
+        if not _hashlib_get_fips_mode():
+            import logging
+            logging.exception('code for hash %s was not found.', __func_name)
 
 
 # Cleanup locals()
