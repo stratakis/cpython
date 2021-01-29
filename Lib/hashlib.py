@@ -88,6 +88,8 @@ def __get_builtin_constructor(name):
         # exception as _hashlib.new() when 'name' is of incorrect type.
         err = f"new() argument 'name' must be str, not {type(name).__name__}"
         raise TypeError(err)
+    if _hashlib.get_fips_mode():
+        raise ValueError(f'unsupported hash algorithm {name} (in FIPS mode)')
     cache = __builtin_constructor_cache
     constructor = cache.get(name)
     if constructor is not None:
@@ -198,14 +200,14 @@ try:
 except ImportError:
     _hashlib = None
     new = __py_new
-    __get_hash = __get_builtin_constructor
+    raise  # importing _hashlib should never fail on RHEL
 
 try:
     # OpenSSL's PKCS5_PBKDF2_HMAC requires OpenSSL 1.0+ with HMAC and SHA
     from _hashlib import pbkdf2_hmac
     __all__ += ('pbkdf2_hmac',)
 except ImportError:
-    pass
+    raise  # importing _hashlib should never fail on RHEL
 
 
 try:
@@ -213,7 +215,7 @@ try:
     from _hashlib import scrypt
     __all__ += ('scrypt',)
 except ImportError:
-    pass
+    raise  # importing _hashlib should never fail on RHEL
 
 
 def file_digest(fileobj, digest, /, *, _bufsize=2**18):

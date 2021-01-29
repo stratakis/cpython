@@ -208,7 +208,13 @@ class HashLibTestCase(unittest.TestCase):
                         constructors.add(constructor)
 
         def add_builtin_constructor(name):
-            constructor = getattr(hashlib, "__get_builtin_constructor")(name)
+            try:
+                constructor = getattr(hashlib, "__get_builtin_constructor")(name)
+            except ValueError:
+                if get_fips_mode():
+                    return
+                else:
+                    raise
             self.constructors_to_test[name].add(constructor)
 
         _md5 = self._conditional_import_module('_md5')
@@ -390,6 +396,20 @@ class HashLibTestCase(unittest.TestCase):
     def test_new_upper_to_lower(self):
         self.assertEqual(hashlib.new("SHA256").name, "sha256")
 
+    @unittest.skipUnless(get_fips_mode(), "Builtin constructor only usable in FIPS mode")
+    def test_get_builtin_constructor_fips(self):
+        get_builtin_constructor = getattr(hashlib,
+                                          '__get_builtin_constructor')
+        with self.assertRaises(ValueError):
+            get_builtin_constructor('md5')
+        with self.assertRaises(ValueError):
+            get_builtin_constructor('sha256')
+        with self.assertRaises(ValueError):
+            get_builtin_constructor('blake2s')
+        with self.assertRaises(ValueError):
+            get_builtin_constructor('test')
+
+    @unittest.skipIf(get_fips_mode(), "No builtin constructors in FIPS mode")
     @support.thread_unsafe("modifies sys.modules")
     def test_get_builtin_constructor(self):
         get_builtin_constructor = getattr(hashlib,
