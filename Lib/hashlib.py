@@ -68,8 +68,6 @@ __all__ = __always_supported + ('new', 'algorithms_guaranteed',
                                 'algorithms_available', 'pbkdf2_hmac')
 
 
-__builtin_constructor_cache = {}
-
 # Prefer our blake2 implementation
 # OpenSSL 1.1.0 comes with a limited implementation of blake2b/s. The OpenSSL
 # implementations neither support keyed blake2 (blake2 MAC) nor advanced
@@ -79,54 +77,64 @@ __block_openssl_constructor = {
     'blake2b', 'blake2s',
 }
 
-def __get_builtin_constructor(name):
-    cache = __builtin_constructor_cache
-    constructor = cache.get(name)
-    if constructor is not None:
-        return constructor
-    try:
-        if name in {'SHA1', 'sha1'}:
-            import _sha1
-            cache['SHA1'] = cache['sha1'] = _sha1.sha1
-        elif name in {'MD5', 'md5'}:
-            import _md5
-            cache['MD5'] = cache['md5'] = _md5.md5
-        elif name in {'SHA256', 'sha256', 'SHA224', 'sha224'}:
-            import _sha256
-            cache['SHA224'] = cache['sha224'] = _sha256.sha224
-            cache['SHA256'] = cache['sha256'] = _sha256.sha256
-        elif name in {'SHA512', 'sha512', 'SHA384', 'sha384'}:
-            import _sha512
-            cache['SHA384'] = cache['sha384'] = _sha512.sha384
-            cache['SHA512'] = cache['sha512'] = _sha512.sha512
-        elif name in {'blake2b', 'blake2s'}:
-            import _blake2
-            cache['blake2b'] = _blake2.blake2b
-            cache['blake2s'] = _blake2.blake2s
-        elif name in {'sha3_224', 'sha3_256', 'sha3_384', 'sha3_512'}:
-            import _sha3
-            cache['sha3_224'] = _sha3.sha3_224
-            cache['sha3_256'] = _sha3.sha3_256
-            cache['sha3_384'] = _sha3.sha3_384
-            cache['sha3_512'] = _sha3.sha3_512
-        elif name in {'shake_128', 'shake_256'}:
-            import _sha3
-            cache['shake_128'] = _sha3.shake_128
-            cache['shake_256'] = _sha3.shake_256
-    except ImportError:
-        pass  # no extension module, this hash is unsupported.
+try:
+    from _hashlib import get_fips_mode
+except ImportError:
+    def get_fips_mode():
+        return 0
 
-    constructor = cache.get(name)
-    if constructor is not None:
-        return constructor
+if not get_fips_mode():
+    __builtin_constructor_cache = {}
 
-    raise ValueError('unsupported hash type ' + name)
+    def __get_builtin_constructor(name):
+        cache = __builtin_constructor_cache
+        constructor = cache.get(name)
+        if constructor is not None:
+            return constructor
+        try:
+            if name in {'SHA1', 'sha1'}:
+                import _sha1
+                cache['SHA1'] = cache['sha1'] = _sha1.sha1
+            elif name in {'MD5', 'md5'}:
+                import _md5
+                cache['MD5'] = cache['md5'] = _md5.md5
+            elif name in {'SHA256', 'sha256', 'SHA224', 'sha224'}:
+                import _sha256
+                cache['SHA224'] = cache['sha224'] = _sha256.sha224
+                cache['SHA256'] = cache['sha256'] = _sha256.sha256
+            elif name in {'SHA512', 'sha512', 'SHA384', 'sha384'}:
+                import _sha512
+                cache['SHA384'] = cache['sha384'] = _sha512.sha384
+                cache['SHA512'] = cache['sha512'] = _sha512.sha512
+            elif name in {'blake2b', 'blake2s'}:
+                import _blake2
+                cache['blake2b'] = _blake2.blake2b
+                cache['blake2s'] = _blake2.blake2s
+            elif name in {'sha3_224', 'sha3_256', 'sha3_384', 'sha3_512'}:
+                import _sha3
+                cache['sha3_224'] = _sha3.sha3_224
+                cache['sha3_256'] = _sha3.sha3_256
+                cache['sha3_384'] = _sha3.sha3_384
+                cache['sha3_512'] = _sha3.sha3_512
+            elif name in {'shake_128', 'shake_256'}:
+                import _sha3
+                cache['shake_128'] = _sha3.shake_128
+                cache['shake_256'] = _sha3.shake_256
+        except ImportError:
+            pass  # no extension module, this hash is unsupported.
+
+        constructor = cache.get(name)
+        if constructor is not None:
+            return constructor
+
+        raise ValueError('unsupported hash type ' + name)
 
 
 def __get_openssl_constructor(name):
-    if name in __block_openssl_constructor:
-        # Prefer our builtin blake2 implementation.
-        return __get_builtin_constructor(name)
+    if not get_fips_mode():
+        if name in __block_openssl_constructor:
+            # Prefer our builtin blake2 implementation.
+            return __get_builtin_constructor(name)
     try:
         # MD5, SHA1, and SHA2 are in all supported OpenSSL versions
         # SHA3/shake are available in OpenSSL 1.1.1+
@@ -138,24 +146,28 @@ def __get_openssl_constructor(name):
         # Use the C function directly (very fast)
         return f
     except (AttributeError, ValueError):
+        if get_fips_mode():
+            raise
         return __get_builtin_constructor(name)
 
 
-def __py_new(name, data=b'', **kwargs):
-    """new(name, data=b'', **kwargs) - Return a new hashing object using the
-    named algorithm; optionally initialized with data (which must be
-    a bytes-like object).
-    """
-    return __get_builtin_constructor(name)(data, **kwargs)
+if not get_fips_mode():
+    def __py_new(name, data=b'', **kwargs):
+        """new(name, data=b'', **kwargs) - Return a new hashing object using the
+        named algorithm; optionally initialized with data (which must be
+        a bytes-like object).
+        """
+        return __get_builtin_constructor(name)(data, **kwargs)
 
 
 def __hash_new(name, data=b'', **kwargs):
     """new(name, data=b'') - Return a new hashing object using the named algorithm;
     optionally initialized with data (which must be a bytes-like object).
     """
-    if name in __block_openssl_constructor:
-        # Prefer our builtin blake2 implementation.
-        return __get_builtin_constructor(name)(data, **kwargs)
+    if not get_fips_mode():
+        if name in __block_openssl_constructor:
+            # Prefer our builtin blake2 implementation.
+            return __get_builtin_constructor(name)(data, **kwargs)
     try:
         return _hashlib.new(name, data, **kwargs)
     except ValueError:
@@ -163,6 +175,8 @@ def __hash_new(name, data=b'', **kwargs):
         # hash, try using our builtin implementations.
         # This allows for SHA224/256 and SHA384/512 support even though
         # the OpenSSL library prior to 0.9.8 doesn't provide them.
+        if get_fips_mode():
+            raise
         return __get_builtin_constructor(name)(data)
 
 
@@ -173,6 +187,8 @@ try:
     algorithms_available = algorithms_available.union(
             _hashlib.openssl_md_meth_names)
 except ImportError:
+    if get_fips_mode:
+        raise
     new = __py_new
     __get_hash = __get_builtin_constructor
 
@@ -183,62 +199,8 @@ except ImportError:
     _trans_5C = bytes((x ^ 0x5C) for x in range(256))
     _trans_36 = bytes((x ^ 0x36) for x in range(256))
 
-    def pbkdf2_hmac(hash_name, password, salt, iterations, dklen=None):
-        """Password based key derivation function 2 (PKCS #5 v2.0)
-
-        This Python implementations based on the hmac module about as fast
-        as OpenSSL's PKCS5_PBKDF2_HMAC for short passwords and much faster
-        for long passwords.
-        """
-        if not isinstance(hash_name, str):
-            raise TypeError(hash_name)
-
-        if not isinstance(password, (bytes, bytearray)):
-            password = bytes(memoryview(password))
-        if not isinstance(salt, (bytes, bytearray)):
-            salt = bytes(memoryview(salt))
-
-        # Fast inline HMAC implementation
-        inner = new(hash_name)
-        outer = new(hash_name)
-        blocksize = getattr(inner, 'block_size', 64)
-        if len(password) > blocksize:
-            password = new(hash_name, password).digest()
-        password = password + b'\x00' * (blocksize - len(password))
-        inner.update(password.translate(_trans_36))
-        outer.update(password.translate(_trans_5C))
-
-        def prf(msg, inner=inner, outer=outer):
-            # PBKDF2_HMAC uses the password as key. We can re-use the same
-            # digest objects and just update copies to skip initialization.
-            icpy = inner.copy()
-            ocpy = outer.copy()
-            icpy.update(msg)
-            ocpy.update(icpy.digest())
-            return ocpy.digest()
-
-        if iterations < 1:
-            raise ValueError(iterations)
-        if dklen is None:
-            dklen = outer.digest_size
-        if dklen < 1:
-            raise ValueError(dklen)
-
-        dkey = b''
-        loop = 1
-        from_bytes = int.from_bytes
-        while len(dkey) < dklen:
-            prev = prf(salt + loop.to_bytes(4, 'big'))
-            # endianness doesn't matter here as long to / from use the same
-            rkey = int.from_bytes(prev, 'big')
-            for i in range(iterations - 1):
-                prev = prf(prev)
-                # rkey = rkey ^ prev
-                rkey ^= from_bytes(prev, 'big')
-            loop += 1
-            dkey += rkey.to_bytes(inner.digest_size, 'big')
-
-        return dkey[:dklen]
+# OpenSSL's PKCS5_PBKDF2_HMAC requires OpenSSL 1.0+ with HMAC and SHA
+from _hashlib import pbkdf2_hmac
 
 try:
     # OpenSSL's scrypt requires OpenSSL 1.1+
@@ -259,4 +221,6 @@ for __func_name in __always_supported:
 
 # Cleanup locals()
 del __always_supported, __func_name, __get_hash
-del __py_new, __hash_new, __get_openssl_constructor
+del __hash_new, __get_openssl_constructor
+if not get_fips_mode():
+    del __py_new
