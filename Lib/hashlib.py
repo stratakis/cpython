@@ -190,13 +190,6 @@ except ImportError:
     new = __py_new
     __get_hash = __get_builtin_constructor
 
-try:
-    # OpenSSL's PKCS5_PBKDF2_HMAC requires OpenSSL 1.0+ with HMAC and SHA
-    from _hashlib import pbkdf2_hmac
-except ImportError:
-    _trans_5C = bytes((x ^ 0x5C) for x in range(256))
-    _trans_36 = bytes((x ^ 0x36) for x in range(256))
-
 # OpenSSL's PKCS5_PBKDF2_HMAC requires OpenSSL 1.0+ with HMAC and SHA
 from _hashlib import pbkdf2_hmac
 
