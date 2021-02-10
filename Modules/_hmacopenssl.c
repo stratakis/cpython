@@ -356,7 +356,7 @@ name -- the name, including the hash algorithm used by this object\n\
 digest_size -- number of bytes in digest() output\n");
 
 static PyType_Slot HmacType_slots[] = {
-    {Py_tp_doc, hmactype_doc},
+    {Py_tp_doc, (char*)hmactype_doc},
     {Py_tp_repr, (reprfunc)_hmac_repr},
     {Py_tp_dealloc,(destructor)_hmac_dealloc},
     {Py_tp_methods, Hmac_methods},
