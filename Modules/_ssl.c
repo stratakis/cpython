@@ -2934,6 +2934,10 @@ _ssl__SSLContext_impl(PyTypeObject *type, int proto_version)
 #ifdef SSL_OP_SINGLE_ECDH_USE
     options |= SSL_OP_SINGLE_ECDH_USE;
 #endif
+#ifdef SSL_OP_IGNORE_UNEXPECTED_EOF
+    /* Make OpenSSL 3.0.0 behave like 1.1.1 */
+    options |= SSL_OP_IGNORE_UNEXPECTED_EOF;
+#endif
     SSL_CTX_set_options(self->ctx, options);
 
     /* A bare minimum cipher list without completely broken cipher suites.
@@ -5696,6 +5700,10 @@ PyInit__ssl(void)
 #ifdef SSL_OP_ENABLE_MIDDLEBOX_COMPAT
     PyModule_AddIntConstant(m, "OP_ENABLE_MIDDLEBOX_COMPAT",
                             SSL_OP_ENABLE_MIDDLEBOX_COMPAT);
+#endif
+#ifdef SSL_OP_IGNORE_UNEXPECTED_EOF
+    PyModule_AddIntConstant(m, "OP_IGNORE_UNEXPECTED_EOF",
+                            SSL_OP_IGNORE_UNEXPECTED_EOF);
 #endif
 
 #if HAVE_SNI
