@@ -136,7 +136,7 @@ The :mod:`urlparse` module defines the following functions:
       now raise :exc:`ValueError`.
 
 
-.. function:: parse_qs(qs[, keep_blank_values[, strict_parsing[, max_num_fields]]])
+.. function:: parse_qs(qs[, keep_blank_values[, strict_parsing[, max_num_fields[, separator]]]])
 
    Parse a query string given as a string argument (data of type
    :mimetype:`application/x-www-form-urlencoded`).  Data are returned as a
@@ -156,6 +156,15 @@ The :mod:`urlparse` module defines the following functions:
    The optional argument *max_num_fields* is the maximum number of fields to
    read. If set, then throws a :exc:`ValueError` if there are more than
    *max_num_fields* fields read.
+
+   The optional argument *separator* is the symbol to use for separating the
+   query arguments. It is recommended to set it to ``'&'`` or ``';'``.
+   It defaults to ``'&'``; a warning is raised if this default is used.
+   This default may be changed with the following environment variable settings:
+
+   - ``PYTHON_URLLIB_QS_SEPARATOR='&'``: use only ``&`` as separator, without warning (as in Python 3.6.13+ or 3.10)
+   - ``PYTHON_URLLIB_QS_SEPARATOR=';'``: use only ``;`` as separator
+   - ``PYTHON_URLLIB_QS_SEPARATOR=legacy``: use both ``&`` and ``;`` (as in previous versions of Python)
 
    Use the :func:`urllib.urlencode` function to convert such dictionaries into
    query strings.
@@ -186,6 +195,9 @@ The :mod:`urlparse` module defines the following functions:
    read. If set, then throws a :exc:`ValueError` if there are more than
    *max_num_fields* fields read.
 
+   The optional argument *separator* is the symbol to use for separating the
+   query arguments. It works as in :py:func:`parse_qs`.
+
    Use the :func:`urllib.urlencode` function to convert such lists of pairs into
    query strings.
 
@@ -194,6 +206,7 @@ The :mod:`urlparse` module defines the following functions:
 
    .. versionchanged:: 2.7.16
       Added *max_num_fields* parameter.
+
 
 .. function:: urlunparse(parts)
 
