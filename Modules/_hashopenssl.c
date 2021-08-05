@@ -2198,7 +2198,7 @@ hashlib_init_constructors(PyObject *module)
         return -1;
     }
 
-    int rc = PyModule_AddObjectRef(module, "_constructors", proxy);
+    int rc = PyModule_AddObject(module, "_constructors", proxy);
     Py_DECREF(proxy);
     if (rc < 0) {
         return -1;
@@ -2215,7 +2215,7 @@ hashlib_exception(PyObject *module)
     if (state->unsupported_digestmod_error == NULL) {
         return -1;
     }
-    if (PyModule_AddObjectRef(module, "UnsupportedDigestmodError",
+    if (PyModule_AddObject(module, "UnsupportedDigestmodError",
                               state->unsupported_digestmod_error) < 0) {
         return -1;
     }
