@@ -350,6 +350,7 @@ class ImportTests(unittest.TestCase):
         import _frozen_importlib
         self.assertEqual(_frozen_importlib.__spec__.origin, "frozen")
 
+    @support.fails_in_fips_mode(ImportError)
     def test_source_hash(self):
         self.assertEqual(_imp.source_hash(42, b'hi'), b'\xfb\xd9G\x05\xaf$\x9b~')
         self.assertEqual(_imp.source_hash(43, b'hi'), b'\xd0/\x87C\xccC\xff\xe2')
@@ -369,6 +370,7 @@ class ImportTests(unittest.TestCase):
             res = script_helper.assert_python_ok(*args)
             self.assertEqual(res.out.strip().decode('utf-8'), expected)
 
+    @support.fails_in_fips_mode(ImportError)
     def test_find_and_load_checked_pyc(self):
         # issue 34056
         with os_helper.temp_cwd():

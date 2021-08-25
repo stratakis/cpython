@@ -2225,6 +2225,20 @@ def requires_venv_with_pip():
     return unittest.skipUnless(ctypes, 'venv: pip requires ctypes')
 
 
+def fails_in_fips_mode(expected_error):
+    import _hashlib
+    if _hashlib.get_fips_mode():
+        def _decorator(func):
+            def _wrapper(self, *args, **kwargs):
+                with self.assertRaises(expected_error):
+                    func(self, *args, **kwargs)
+            return _wrapper
+    else:
+        def _decorator(func):
+            return func
+    return _decorator
+
+
 @contextlib.contextmanager
 def adjust_int_max_str_digits(max_digits):
     """Temporarily change the integer string conversion length limit."""
