@@ -3658,8 +3658,12 @@ if _have_threads:
             client_context.verify_mode = ssl.CERT_REQUIRED
             client_context.load_verify_locations(SIGNING_CA)
 
+            # Sessions are not compatible with TLS 1.3
+            client_context.options |= ssl.OP_NO_TLSv1_3
+
             # first connection without session
-            stats = server_params_test(client_context, server_context)
+            stats = server_params_test(client_context, server_context,
+                                       sni_name='localhost')
             session = stats['session']
             self.assertTrue(session.id)
             self.assertGreater(session.time, 0)
@@ -3673,7 +3677,8 @@ if _have_threads:
             self.assertEqual(sess_stat['hits'], 0)
 
             # reuse session
-            stats = server_params_test(client_context, server_context, session=session)
+            stats = server_params_test(client_context, server_context,
+                                       session=session, sni_name='localhost')
             sess_stat = server_context.session_stats()
             self.assertEqual(sess_stat['accept'], 2)
             self.assertEqual(sess_stat['hits'], 1)
@@ -3686,7 +3691,8 @@ if _have_threads:
             self.assertGreaterEqual(session2.timeout, session.timeout)
 
             # another one without session
-            stats = server_params_test(client_context, server_context)
+            stats = server_params_test(client_context, server_context,
+                                       sni_name='localhost')
             self.assertFalse(stats['session_reused'])
             session3 = stats['session']
             self.assertNotEqual(session3.id, session.id)
@@ -3696,7 +3702,8 @@ if _have_threads:
             self.assertEqual(sess_stat['hits'], 1)
 
             # reuse session again
-            stats = server_params_test(client_context, server_context, session=session)
+            stats = server_params_test(client_context, server_context,
+                                       session=session, sni_name='localhost')
             self.assertTrue(stats['session_reused'])
             session4 = stats['session']
             self.assertEqual(session4.id, session.id)
