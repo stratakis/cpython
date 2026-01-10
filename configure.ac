@@ -8503,7 +8503,11 @@ dnl our own for algorithm resolution.
 dnl
 dnl For Emscripten, we disable HACL* HMAC as it is tricky to make it work.
 dnl See https://github.com/python/cpython/issues/133042.
-PY_HACL_CREATE_MODULE([HMAC], [_hmac], [test "$ac_sys_system" != "Emscripten"])
+dnl
+dnl _hmac requires all HACL* hash modules (LIBHACL_HMAC_OBJS includes
+dnl MD5, SHA1, SHA2, SHA3, BLAKE2). Disable if not all are built.
+PY_HACL_CREATE_MODULE([HMAC], [_hmac],
+  [test "$with_builtin_md5" = yes -a "$with_builtin_sha1" = yes -a "$with_builtin_sha2" = yes -a "$with_builtin_sha3" = yes -a "$with_builtin_blake2" = yes -a "$ac_sys_system" != "Emscripten"])
 ### end(cryptographic primitives)
 
 PY_STDLIB_MOD([_ctypes],
