@@ -10,9 +10,9 @@ from __future__ import annotations
 
 import argparse
 import os
-import struct
 import sys
 from dataclasses import dataclass
+from typing import Literal
 
 # ELF constants, see <elf.h>.
 _ELF_MAGIC = b"\x7fELF"
@@ -75,6 +75,27 @@ _MACHO_SECTION_NAMES = {
     "__text": ".text",
 }
 
+_BYTE_ORDERS: dict[str, Literal["little", "big"]] = {"<": "little", ">": "big"}
+
+
+def _unpack(
+    data: bytes | bytearray, offset: int, endian: str, *sizes: int
+) -> tuple[int, ...]:
+    """Read consecutive unsigned integers of the given byte sizes.
+
+    endian is "<" or ">" as in the struct module, which is not available
+    under _bootstrap_python.
+    """
+    end = offset + sum(sizes)
+    if offset < 0 or end > len(data):
+        raise ValueError(f"read up to offset {end} in {len(data)} bytes of data")
+    byteorder = _BYTE_ORDERS[endian]
+    values = []
+    for size in sizes:
+        values.append(int.from_bytes(data[offset : offset + size], byteorder))
+        offset += size
+    return tuple(values)
+
 
 @dataclass
 class ObjectSlice:
@@ -109,7 +130,7 @@ def _elf_slice(data: bytes, source: str) -> ObjectSlice:
     else:
         raise ValueError(f"{source}: unknown ELF byte order ({data[5]})")
 
-    e_machine: int = struct.unpack_from(f"{endian}H", data, 18)[0]
+    e_machine = _unpack(data, 18, endian, 2)[0]
     try:
         arch_macro = _ELF_ARCH_MACROS[e_machine]
     except KeyError:
@@ -117,8 +138,8 @@ def _elf_slice(data: bytes, source: str) -> ObjectSlice:
             f"{source}: unsupported ELF machine type {e_machine}"
         ) from None
 
-    e_shoff: int = struct.unpack_from(f"{endian}Q", data, 40)[0]
-    e_shentsize, e_shnum, e_shstrndx = struct.unpack_from(f"{endian}HHH", data, 58)
+    e_shoff = _unpack(data, 40, endian, 8)[0]
+    e_shentsize, e_shnum, e_shstrndx = _unpack(data, 58, endian, 2, 2, 2)
     if e_shoff == 0 or e_shnum == 0:
         raise ValueError(f"{source}: no section headers")
     if e_shentsize < _ELF64_SECTION_HEADER_SIZE:
@@ -130,8 +151,8 @@ def _elf_slice(data: bytes, source: str) -> ObjectSlice:
 
     def section_header(index: int) -> tuple[int, int, int, int]:
         base = e_shoff + index * e_shentsize
-        sh_name, sh_type = struct.unpack_from(f"{endian}II", data, base)
-        sh_offset, sh_size = struct.unpack_from(f"{endian}QQ", data, base + 24)
+        sh_name, sh_type = _unpack(data, base, endian, 4, 4)
+        sh_offset, sh_size = _unpack(data, base + 24, endian, 8, 8)
         return sh_name, sh_type, sh_offset, sh_size
 
     def section_bytes(name: str, sh_type: int, sh_offset: int, sh_size: int) -> bytes:
@@ -165,7 +186,7 @@ def _macho_slice(data: bytes, source: str) -> ObjectSlice:
     """Parse a thin Mach-O 64-bit object."""
     if len(data) < _MACHO64_HEADER_SIZE:
         raise ValueError(f"{source}: truncated Mach-O header")
-    magic: int = struct.unpack_from("<I", data, 0)[0]
+    magic = _unpack(data, 0, "<", 4)[0]
     if magic == _MH_MAGIC_64:
         endian = "<"
     elif magic == _MH_CIGAM_64:
@@ -173,7 +194,7 @@ def _macho_slice(data: bytes, source: str) -> ObjectSlice:
     else:
         raise ValueError(f"{source}: not a 64-bit Mach-O object")
 
-    cputype: int = struct.unpack_from(f"{endian}I", data, 4)[0]
+    cputype = _unpack(data, 4, endian, 4)[0]
     try:
         arch_macro = _MACHO_ARCH_MACROS[cputype]
     except KeyError:
@@ -183,7 +204,7 @@ def _macho_slice(data: bytes, source: str) -> ObjectSlice:
 
     # mach_header_64: magic, cputype, cpusubtype, filetype, ncmds,
     # sizeofcmds, flags, reserved (8 x uint32, 32 bytes).
-    ncmds, sizeofcmds = struct.unpack_from(f"{endian}II", data, 16)
+    ncmds, sizeofcmds = _unpack(data, 16, endian, 4, 4)
     commands_end = _MACHO64_HEADER_SIZE + sizeofcmds
     if commands_end > len(data):
         raise ValueError(f"{source}: load commands extend beyond the end of the file")
@@ -193,7 +214,7 @@ def _macho_slice(data: bytes, source: str) -> ObjectSlice:
     for _ in range(ncmds):
         if offset + 8 > commands_end:
             raise ValueError(f"{source}: truncated load commands")
-        cmd, cmdsize = struct.unpack_from(f"{endian}II", data, offset)
+        cmd, cmdsize = _unpack(data, offset, endian, 4, 4)
         if cmdsize < 8 or offset + cmdsize > commands_end:
             raise ValueError(f"{source}: bad load command size {cmdsize}")
         if cmd == _LC_SEGMENT_64:
@@ -202,7 +223,7 @@ def _macho_slice(data: bytes, source: str) -> ObjectSlice:
             # followed by nsects section_64 entries.
             if cmdsize < _MACHO64_SEGMENT_COMMAND_SIZE:
                 raise ValueError(f"{source}: truncated segment command")
-            nsects: int = struct.unpack_from(f"{endian}I", data, offset + 64)[0]
+            nsects = _unpack(data, offset + 64, endian, 4)[0]
             if _MACHO64_SEGMENT_COMMAND_SIZE + nsects * _MACHO64_SECTION_SIZE > cmdsize:
                 raise ValueError(
                     f"{source}: section table extends beyond its segment command"
@@ -219,10 +240,8 @@ def _macho_slice(data: bytes, source: str) -> ObjectSlice:
                 if name is not None and segname == b"__TEXT":
                     if name in sections:
                         raise ValueError(f"{source}: more than one {name} section")
-                    size: int = struct.unpack_from(f"{endian}Q", data, sect + 40)[0]
-                    file_offset: int = struct.unpack_from(
-                        f"{endian}I", data, sect + 48
-                    )[0]
+                    size = _unpack(data, sect + 40, endian, 8)[0]
+                    file_offset = _unpack(data, sect + 48, endian, 4)[0]
                     if file_offset + size > len(data):
                         raise ValueError(
                             f"{source}: section {name} extends past the end of the file"
@@ -237,13 +256,14 @@ def _macho_slice(data: bytes, source: str) -> ObjectSlice:
 def _fat_slices(data: bytes, source: str) -> list[ObjectSlice]:
     """Split a universal (fat) Mach-O file into its thin slices."""
     # The fat header and its fat_arch entries are always big-endian.
-    magic, nfat_arch = struct.unpack_from(">II", data, 0)
+    magic, nfat_arch = _unpack(data, 0, ">", 4, 4)
+    entry_sizes: tuple[int, ...]
     if magic == _FAT_MAGIC:
         # fat_arch: cputype, cpusubtype, offset, size, align (20 bytes).
-        entry_format, entry_size = ">IIIII", 20
+        entry_sizes, entry_size = (4, 4, 4, 4, 4), 20
     elif magic == _FAT_MAGIC_64:
         # fat_arch_64: cputype, cpusubtype, offset, size, align, reserved.
-        entry_format, entry_size = ">IIQQII", 32
+        entry_sizes, entry_size = (4, 4, 8, 8, 4, 4), 32
     else:
         raise ValueError(f"{source}: not a fat Mach-O file")
     if nfat_arch == 0:
@@ -253,9 +273,7 @@ def _fat_slices(data: bytes, source: str) -> list[ObjectSlice]:
 
     slices: list[ObjectSlice] = []
     for index in range(nfat_arch):
-        entry = struct.unpack_from(
-            entry_format, data, _FAT_HEADER_SIZE + index * entry_size
-        )
+        entry = _unpack(data, _FAT_HEADER_SIZE + index * entry_size, ">", *entry_sizes)
         cputype, _, offset, size = entry[:4]
         thin = data[offset : offset + size]
         if len(thin) != size:
@@ -279,10 +297,10 @@ def load_object(path: str) -> list[ObjectSlice]:
         return [_elf_slice(data, source)]
     if len(data) < _FAT_HEADER_SIZE:
         raise ValueError(f"{source}: file too short to be an object file")
-    magic_be: int = struct.unpack_from(">I", data, 0)[0]
+    magic_be = _unpack(data, 0, ">", 4)[0]
     if magic_be in (_FAT_MAGIC, _FAT_MAGIC_64):
         return _fat_slices(data, source)
-    magic_le: int = struct.unpack_from("<I", data, 0)[0]
+    magic_le = _unpack(data, 0, "<", 4)[0]
     if magic_le in (_MH_MAGIC_64, _MH_CIGAM_64):
         return [_macho_slice(data, source)]
     raise ValueError(f"{source}: not an ELF64, Mach-O 64 or fat Mach-O object")
@@ -314,7 +332,7 @@ def parse_ehframe(eh_frame: bytes, endian: str, text_size: int) -> EhFrame:
         raise ValueError("no CIE found in .eh_frame")
 
     # CIE header: length, CIE_id (0), version, augmentation string.
-    cie_length, cie_id = struct.unpack_from(f"{endian}II", data, 0)
+    cie_length, cie_id = _unpack(data, 0, endian, 4, 4)
     if cie_id != 0:
         raise ValueError(f"expected a CIE at offset 0, got CIE_id={cie_id:#x}")
     cie_total: int = 4 + cie_length
@@ -355,7 +373,7 @@ def parse_ehframe(eh_frame: bytes, endian: str, text_size: int) -> EhFrame:
     fde_min_length = 4 + 2 * field_size + 1
     if fde_start + 4 + fde_min_length > len(data):
         raise ValueError("no FDE after the CIE")
-    fde_length, fde_cie_ptr = struct.unpack_from(f"{endian}II", data, fde_start)
+    fde_length, fde_cie_ptr = _unpack(data, fde_start, endian, 4, 4)
     if fde_length < fde_min_length:
         raise ValueError(f"FDE too short ({fde_length} bytes)")
     if fde_cie_ptr != fde_start + 4:
