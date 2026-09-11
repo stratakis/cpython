@@ -49,6 +49,23 @@ enum {
     DWRF_EH_PE_indirect = 0x80
 };
 
+#if defined(PY_HAVE_PERF_TRAMPOLINE)
+/* The perf trampoline's .eh_frame, extracted from the compiled trampoline
+ * object by Tools/jit/_trampoline_ehframe.py into trampoline_ehframe.c.
+ * The FDE's initial_location and address_range are zeroed placeholders,
+ * fde_field_size bytes each at fde_pc_offset and fde_range_offset, that
+ * _PyJitUnwind_BuildEhFrame() fills in. */
+typedef struct {
+    const uint8_t *data;
+    size_t size;
+    size_t fde_pc_offset;
+    size_t fde_range_offset;
+    size_t fde_field_size;
+} _PyTrampolineEhFrame;
+
+PyAPI_DATA(const _PyTrampolineEhFrame) _Py_trampoline_ehframe;
+#endif
+
 /* Return the size of the generated .eh_frame data for the given encoding. */
 size_t _PyJitUnwind_EhFrameSize(int absolute_addr);
 

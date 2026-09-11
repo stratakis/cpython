@@ -980,27 +980,27 @@ class TestTrampolineEhframeScript(unittest.TestCase):
         self.assertEqual(fat_slices[0].sections[".eh_frame"], b"x86 eh_frame")
         self.assertEqual(fat_slices[1].sections[".text"], b"\xc0\x03\x5f\xd6")
 
-    def test_generated_header_is_current(self):
-        """The header in the build directory matches a fresh generation."""
+    def test_generated_source_is_current(self):
+        """The C file in the build directory matches a fresh generation."""
         objects = self._build_trampoline_objects()
         builddir = sysconfig.get_config_var("abs_builddir") or "."
-        header = os.path.join(builddir, "trampoline_ehframe.h")
-        if not objects or not os.path.exists(header):
-            self.skipTest("trampoline object or generated header not found")
-        with open(header) as f:
+        source = os.path.join(builddir, "trampoline_ehframe.c")
+        if not objects or not os.path.exists(source):
+            self.skipTest("trampoline object or generated C file not found")
+        with open(source) as f:
             current = f.read()
         with temp_dir() as tmp:
-            fresh_path = os.path.join(tmp, "trampoline_ehframe.h")
+            fresh_path = os.path.join(tmp, "trampoline_ehframe.c")
             self.ehframe.generate(objects, fresh_path)
             with open(fresh_path) as f:
                 fresh = f.read()
         self.assertEqual(current, fresh)
 
 
-class TestTrampolineEhframeHeader(unittest.TestCase):
-    """Structural checks on the generated trampoline_ehframe.h data."""
+class TestTrampolineEhframeData(unittest.TestCase):
+    """Structural checks on the generated trampoline_ehframe.c data."""
 
-    def test_generated_header_structure(self):
+    def test_generated_data_structure(self):
         _testinternalcapi = import_helper.import_module("_testinternalcapi")
         check = getattr(_testinternalcapi, "test_trampoline_ehframe", None)
         if check is None:

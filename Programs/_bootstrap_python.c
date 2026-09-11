@@ -8,6 +8,7 @@
 
 #include "Python.h"
 #include "pycore_import.h"
+#include "pycore_jit_unwind.h"    // _PyTrampolineEhFrame
 
 /* Includes for frozen modules: */
 #include "Python/frozen_modules/importlib._bootstrap.h"
@@ -44,6 +45,14 @@ const struct _module_alias *_PyImport_FrozenAliases = aliases;
    collection of frozen modules: */
 
 const struct _frozen *PyImport_FrozenModules = NULL;
+
+#ifdef PY_HAVE_PERF_TRAMPOLINE
+/* Python/jit_unwind.o references the trampoline's unwind data, but
+   trampoline_ehframe.c is generated later in the build, by _bootstrap_python,
+   so it cannot be linked in here. The perf trampoline is never activated
+   in this program. */
+const _PyTrampolineEhFrame _Py_trampoline_ehframe = {NULL, 0, 0, 0, 0};
+#endif
 
 int
 #ifdef MS_WINDOWS

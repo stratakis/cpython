@@ -2720,7 +2720,6 @@ _testinternalcapi_test_long_numbits_impl(PyObject *module)
 }
 
 #if defined(PY_HAVE_PERF_TRAMPOLINE)
-#include "trampoline_ehframe.h"
 
 /* Structural checks on the generated perf trampoline .eh_frame and the
  * field offsets Python/jit_unwind.c patches. Raises instead of assert()
@@ -2737,10 +2736,13 @@ test_trampoline_ehframe(PyObject *self, PyObject *Py_UNUSED(args))
         }                                                           \
     } while (0)
 
-    const uint8_t *data = _trampoline_ehframe;
-    size_t size = TRAMPOLINE_EHFRAME_SIZE;
-    size_t field_size = TRAMPOLINE_EHFRAME_FDE_FIELD_SIZE;
+    const uint8_t *data = _Py_trampoline_ehframe.data;
+    size_t size = _Py_trampoline_ehframe.size;
+    size_t field_size = _Py_trampoline_ehframe.fde_field_size;
+    size_t pc_offset = _Py_trampoline_ehframe.fde_pc_offset;
+    size_t range_offset = _Py_trampoline_ehframe.fde_range_offset;
 
+    CHECK(data != NULL && size > 0, "no trampoline .eh_frame is linked in");
     CHECK(field_size == 4 || field_size == 8, "unsupported FDE field size");
     CHECK(size >= 8 + 8 + 2 * field_size + 1, "data too small for a CIE and an FDE");
 
@@ -2814,18 +2816,15 @@ test_trampoline_ehframe(PyObject *self, PyObject *Py_UNUSED(args))
 
     /* The runtime patches initial_location and address_range at the
      * recorded offsets. They must be the two fields after the CIE pointer
-     * and must be zeroed placeholders in the header. */
-    CHECK(TRAMPOLINE_EHFRAME_FDE_PC_OFFSET == cie_total + 8,
-          "FDE initial_location offset is wrong");
-    CHECK(TRAMPOLINE_EHFRAME_FDE_RANGE_OFFSET
-              == TRAMPOLINE_EHFRAME_FDE_PC_OFFSET + field_size,
+     * and must be zeroed placeholders in the data. */
+    CHECK(pc_offset == cie_total + 8, "FDE initial_location offset is wrong");
+    CHECK(range_offset == pc_offset + field_size,
           "FDE address_range offset is wrong");
     for (size_t i = 0; i < 2 * field_size; i++) {
-        CHECK(data[TRAMPOLINE_EHFRAME_FDE_PC_OFFSET + i] == 0,
-              "FDE placeholder fields are not zero");
+        CHECK(data[pc_offset + i] == 0, "FDE placeholder fields are not zero");
     }
     /* The FDE's own augmentation data length must follow and be 0. */
-    size_t fde_aug_offset = TRAMPOLINE_EHFRAME_FDE_RANGE_OFFSET + field_size;
+    size_t fde_aug_offset = range_offset + field_size;
     CHECK(fde_aug_offset < size, "FDE augmentation data length byte is missing");
     CHECK(data[fde_aug_offset] == 0, "FDE augmentation data length is not 0");
 
