@@ -38,6 +38,11 @@ _FAT_MAGIC = 0xCAFEBABE
 _FAT_MAGIC_64 = 0xCAFEBABF
 _FAT_HEADER_SIZE = 8
 _LC_SEGMENT_64 = 0x19
+_SECTION_TYPE = 0x000000FF
+_S_ZEROFILL = 0x01
+_S_GB_ZEROFILL = 0x0C
+_S_THREAD_LOCAL_ZEROFILL = 0x12
+_ZEROFILL_SECTION_TYPES = (_S_ZEROFILL, _S_GB_ZEROFILL, _S_THREAD_LOCAL_ZEROFILL)
 _CPU_ARCH_ABI64 = 0x01000000
 _CPU_TYPE_X86_64 = 7 | _CPU_ARCH_ABI64
 _CPU_TYPE_ARM64 = 12 | _CPU_ARCH_ABI64
@@ -47,6 +52,11 @@ _CPU_TYPE_ARM64 = 12 | _CPU_ARCH_ABI64
 _DW_EH_PE_absptr = 0x00
 _DW_EH_PE_sdata4 = 0x0B
 _DW_EH_PE_pcrel = 0x10
+
+# Largest .eh_frame accepted, in bytes. Python/perf_jit_trampoline.c builds
+# each jitdump entry's frame in a buffer of this size and skips the entry
+# when the frame does not fit, so a larger one would silently break perf.
+_MAX_EHFRAME_SIZE = 1024
 
 # Smallest CIE the parser accepts, in bytes after the length field: CIE_id,
 # version, "zR\0", code and data alignment factors, return address column,
@@ -234,7 +244,8 @@ def _macho_slice(data: bytes, source: str) -> ObjectSlice:
             sect = offset + _MACHO64_SEGMENT_COMMAND_SIZE
             for _ in range(nsects):
                 # section_64: sectname[16], segname[16], addr, size, offset,
-                # align, reloff, nreloc, flags, reserved1-3 (80 bytes).
+                # align, reloff, nreloc, flags, reserved1-3 (80 bytes). The
+                # low byte of flags is the section type.
                 raw_name = data[sect : sect + 16].split(b"\x00", 1)[0]
                 segname = data[sect + 16 : sect + 32].split(b"\x00", 1)[0]
                 name = _MACHO_SECTION_NAMES.get(
@@ -245,6 +256,11 @@ def _macho_slice(data: bytes, source: str) -> ObjectSlice:
                         raise ValueError(f"{source}: more than one {name} section")
                     size = _unpack(data, sect + 40, endian, 8)[0]
                     file_offset = _unpack(data, sect + 48, endian, 4)[0]
+                    flags = _unpack(data, sect + 64, endian, 4)[0]
+                    if flags & _SECTION_TYPE in _ZEROFILL_SECTION_TYPES:
+                        raise ValueError(
+                            f"{source}: section {name} has no contents in the file"
+                        )
                     if file_offset + size > len(data):
                         raise ValueError(
                             f"{source}: section {name} extends past the end of the file"
@@ -330,6 +346,13 @@ def parse_ehframe(eh_frame: bytes, endian: str, text_size: int) -> EhFrame:
     text_size is the size of the object's .text section; it must equal the
     FDE's address_range, which catches a misplaced .cfi_endproc.
     """
+    if text_size == 0:
+        raise ValueError(".text section is empty")
+    if len(eh_frame) > _MAX_EHFRAME_SIZE:
+        raise ValueError(
+            f".eh_frame is {len(eh_frame)} bytes, larger than the "
+            f"{_MAX_EHFRAME_SIZE} bytes the runtime accepts"
+        )
     data = bytearray(eh_frame)
     if len(data) < 8:
         raise ValueError("no CIE found in .eh_frame")

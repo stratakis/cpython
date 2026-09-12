@@ -191,44 +191,36 @@ static void elfctx_append_uleb128(ELFObjectContext* ctx, uint32_t v) {
 //                              DWARF EH FRAME GENERATION
 // =============================================================================
 
-static void elf_init_ehframe_perf(ELFObjectContext* ctx);
 #if defined(PY_HAVE_JIT_GDB_UNWIND)
 static void elf_init_ehframe_gdb(ELFObjectContext* ctx);
 #endif
 
-static inline void elf_init_ehframe(ELFObjectContext* ctx, int absolute_addr) {
-    if (absolute_addr) {
-#if defined(PY_HAVE_JIT_GDB_UNWIND)
-        elf_init_ehframe_gdb(ctx);
-#else
-        Py_UNREACHABLE();
-#endif
-    }
-    else {
-        elf_init_ehframe_perf(ctx);
-    }
-}
-
 size_t
 _PyJitUnwind_EhFrameSize(int absolute_addr)
 {
-#if defined(PY_HAVE_PERF_TRAMPOLINE)
     if (!absolute_addr) {
+#if defined(PY_HAVE_PERF_TRAMPOLINE)
         return _Py_trampoline_ehframe.size;
-    }
+#else
+        return 0;
 #endif
+    }
+#if defined(PY_HAVE_JIT_GDB_UNWIND)
     /* GDB path: generate into scratch to learn the required size. */
     uint8_t scratch[512];
     _Static_assert(sizeof(scratch) >= 256,
-                   "scratch buffer may be too small for elf_init_ehframe");
+                   "scratch buffer may be too small for elf_init_ehframe_gdb");
     ELFObjectContext ctx;
     ctx.code_size = 1;
     ctx.code_addr = 0;
     ctx.startp = ctx.p = scratch;
-    elf_init_ehframe(&ctx, absolute_addr);
+    elf_init_ehframe_gdb(&ctx);
     ptrdiff_t size = ctx.p - ctx.startp;
     assert(size <= (ptrdiff_t)sizeof(scratch));
     return (size_t)size;
+#else
+    return 0;
+#endif
 }
 
 size_t
@@ -239,17 +231,16 @@ _PyJitUnwind_BuildEhFrame(uint8_t *buffer, size_t buffer_size,
     if (buffer == NULL || code_addr == NULL || code_size == 0) {
         return 0;
     }
+    if (!absolute_addr) {
 #if defined(PY_HAVE_PERF_TRAMPOLINE)
-    /* perf's EhFrameHeader stores the distance from the end of the frame
-     * back to the code as a signed 4-byte offset (see perf_jit_trampoline.c),
-     * and so does the FDE when its fields are 4 bytes wide. Refuse sizes
-     * those cannot hold rather than writing truncated offsets. */
-    if (!absolute_addr
-        && code_size > (size_t)INT32_MAX - 8 - _Py_trampoline_ehframe.size) {
+        return _PyJitUnwind_PatchTrampolineEhFrame(
+            &_Py_trampoline_ehframe, buffer, buffer_size, code_size);
+#else
         return 0;
-    }
 #endif
-    /* Size the frame first (a constant for the perf path), then write it. */
+    }
+#if defined(PY_HAVE_JIT_GDB_UNWIND)
+    /* Size the frame first, then write it. */
     size_t required = _PyJitUnwind_EhFrameSize(absolute_addr);
     if (required == 0 || required > buffer_size) {
         return 0;
@@ -258,11 +249,14 @@ _PyJitUnwind_BuildEhFrame(uint8_t *buffer, size_t buffer_size,
     ctx.code_size = code_size;
     ctx.code_addr = (uintptr_t)code_addr;
     ctx.startp = ctx.p = buffer;
-    elf_init_ehframe(&ctx, absolute_addr);
+    elf_init_ehframe_gdb(&ctx);
     size_t written = (size_t)(ctx.p - ctx.startp);
     /* The frame size is independent of code_addr/code_size (fixed-width fields). */
     assert(written == required);
     return written;
+#else
+    return 0;
+#endif
 }
 
 /*
@@ -278,7 +272,7 @@ _PyJitUnwind_BuildEhFrame(uint8_t *buffer, size_t buffer_size,
  *
  * Two flavors are emitted, dispatched on the absolute_addr flag:
  *
- * - absolute_addr == 0 (elf_init_ehframe_perf): PC-relative FDE address
+ * - absolute_addr == 0 (_PyJitUnwind_PatchTrampolineEhFrame): PC-relative FDE address
  *   encoding for perf's synthesized DSO layout. The bytes come from
  *   trampoline_ehframe.c, generated at build time from the compiled
  *   trampoline object. Only the FDE's initial_location and address_range
@@ -317,37 +311,60 @@ _PyJitUnwind_BuildEhFrame(uint8_t *buffer, size_t buffer_size,
  *   across the region). This is the GDB-side fix; see elf_init_ehframe_gdb
  *   for details.
  */
-static void elf_init_ehframe_perf(ELFObjectContext* ctx) {
 #if defined(PY_HAVE_PERF_TRAMPOLINE)
-    const _PyTrampolineEhFrame *eh = &_Py_trampoline_ehframe;
-    assert(eh->fde_range_offset == eh->fde_pc_offset + eh->fde_field_size);
-    assert(eh->fde_range_offset + eh->fde_field_size <= eh->size);
-    uint8_t *p = ctx->p;
-    memcpy(p, eh->data, eh->size);
+size_t
+_PyJitUnwind_PatchTrampolineEhFrame(const _PyTrampolineEhFrame *eh,
+                                    uint8_t *buffer, size_t buffer_size,
+                                    size_t code_size)
+{
+    /* The data can only come from Tools/jit/_trampoline_ehframe.py, but
+     * check it here as well instead of trusting the linked object: the
+     * bootstrap programs link an empty stub, and a malformed artifact must
+     * not turn into out-of-bounds writes. The bounds checks subtract so
+     * they cannot overflow. */
+    if (eh == NULL || eh->data == NULL || buffer == NULL || code_size == 0) {
+        return 0;
+    }
+    size_t size = eh->size;
+    size_t field_size = eh->fde_field_size;
+    if (size == 0 || size > buffer_size
+        || (field_size != 4 && field_size != 8)
+        || size < 2 * field_size
+        || eh->fde_pc_offset > size - 2 * field_size
+        || eh->fde_range_offset != eh->fde_pc_offset + field_size) {
+        return 0;
+    }
+    /* perf's EhFrameHeader stores the distance from the end of the frame
+     * back to the code as a signed 4-byte offset (see perf_jit_trampoline.c),
+     * and so does the FDE when its fields are 4 bytes wide. Refuse sizes
+     * those cannot hold rather than writing truncated offsets. */
+    if (size > (size_t)INT32_MAX - 8
+        || code_size > (size_t)INT32_MAX - 8 - size) {
+        return 0;
+    }
+    memcpy(buffer, eh->data, size);
 
     /* perf maps this .eh_frame right after the code, at code_size rounded
      * up to 8 bytes (see EhFrameHeader in perf_jit_trampoline.c), and
      * initial_location is relative to its own field. */
     int64_t initial_location = -(int64_t)(
-        _Py_SIZE_ROUND_UP(ctx->code_size, 8) + eh->fde_pc_offset);
-    uint64_t address_range = ctx->code_size;
-    if (eh->fde_field_size == 4) {
+        _Py_SIZE_ROUND_UP(code_size, 8) + eh->fde_pc_offset);
+    uint64_t address_range = code_size;
+    if (field_size == 4) {
         int32_t pc_field = (int32_t)initial_location;
         uint32_t range_field = (uint32_t)address_range;
-        memcpy(p + eh->fde_pc_offset, &pc_field, sizeof(pc_field));
-        memcpy(p + eh->fde_range_offset, &range_field, sizeof(range_field));
+        memcpy(buffer + eh->fde_pc_offset, &pc_field, sizeof(pc_field));
+        memcpy(buffer + eh->fde_range_offset, &range_field, sizeof(range_field));
     }
     else {
-        assert(eh->fde_field_size == 8);
-        memcpy(p + eh->fde_pc_offset, &initial_location,
+        memcpy(buffer + eh->fde_pc_offset, &initial_location,
                sizeof(initial_location));
-        memcpy(p + eh->fde_range_offset, &address_range,
+        memcpy(buffer + eh->fde_range_offset, &address_range,
                sizeof(address_range));
     }
-
-    ctx->p = p + eh->size;
-#endif
+    return size;
 }
+#endif /* PY_HAVE_PERF_TRAMPOLINE */
 
 /*
  * Build .eh_frame data for the GDB JIT interface.

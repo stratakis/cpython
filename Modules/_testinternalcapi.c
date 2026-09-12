@@ -2831,6 +2831,49 @@ test_trampoline_ehframe(PyObject *self, PyObject *Py_UNUSED(args))
 #undef CHECK
     Py_RETURN_NONE;
 }
+
+/* Run the runtime's FDE patching on caller-supplied data, so the tests can
+ * cover both field widths and the rejection paths on any platform.
+ * Returns the patched bytes, or None when the runtime refuses the input. */
+static PyObject *
+patch_trampoline_ehframe(PyObject *self, PyObject *args)
+{
+    Py_buffer data;
+    Py_ssize_t pc_offset, range_offset, field_size, code_size, buffer_size;
+    if (!PyArg_ParseTuple(args, "y*nnnnn", &data, &pc_offset, &range_offset,
+                          &field_size, &code_size, &buffer_size)) {
+        return NULL;
+    }
+    PyObject *result = NULL;
+    uint8_t *buffer = NULL;
+    if (pc_offset < 0 || range_offset < 0 || field_size < 0 || code_size < 0
+        || buffer_size < 0) {
+        PyErr_SetString(PyExc_ValueError, "arguments must not be negative");
+        goto done;
+    }
+    buffer = PyMem_Malloc(buffer_size > 0 ? (size_t)buffer_size : 1);
+    if (buffer == NULL) {
+        PyErr_NoMemory();
+        goto done;
+    }
+    _PyTrampolineEhFrame eh = {
+        data.buf, (size_t)data.len, (size_t)pc_offset, (size_t)range_offset,
+        (size_t)field_size,
+    };
+    size_t written = _PyJitUnwind_PatchTrampolineEhFrame(
+        &eh, buffer, (size_t)buffer_size, (size_t)code_size);
+    if (written == 0) {
+        result = Py_NewRef(Py_None);
+    }
+    else {
+        result = PyBytes_FromStringAndSize((const char *)buffer,
+                                           (Py_ssize_t)written);
+    }
+done:
+    PyMem_Free(buffer);
+    PyBuffer_Release(&data);
+    return result;
+}
 #endif /* PY_HAVE_PERF_TRAMPOLINE */
 
 static PyObject *
@@ -3470,6 +3513,7 @@ static PyMethodDef module_functions[] = {
     {"perf_trampoline_set_persist_after_fork", perf_trampoline_set_persist_after_fork, METH_VARARGS},
 #if defined(PY_HAVE_PERF_TRAMPOLINE)
     {"test_trampoline_ehframe", test_trampoline_ehframe, METH_NOARGS},
+    {"patch_trampoline_ehframe", patch_trampoline_ehframe, METH_VARARGS},
 #endif
     {"get_crossinterp_data",    _PyCFunction_CAST(get_crossinterp_data),
      METH_VARARGS | METH_KEYWORDS},

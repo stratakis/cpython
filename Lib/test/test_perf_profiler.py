@@ -846,73 +846,20 @@ except ImportError:
     # Installed Python without the Tools directory.
     _trampoline_ehframe = None
 
-
-def _fake_cie(*, version=1, augmentation=b"zR", ra_column=16,
-              encoding=DW_EH_PE_PCREL_SDATA4, cie_id=0):
-    """A CIE like the assembler's: code align 1, data align -8, one
-    DW_CFA_def_cfa instruction, padded with DW_CFA_nop to 8 bytes."""
-    body = bytes([version]) + augmentation + b"\x00"
-    body += bytes([1, 0x78, ra_column, 1, encoding])
-    body += bytes([0x0C, 7, 8])  # DW_CFA_def_cfa: r7 (rsp) ofs 8
-    body += b"\x00" * (-(8 + len(body)) % 8)
-    return struct.pack("<II", 4 + len(body), cie_id) + body
-
-
-def _fake_fde(cie_total, *, field_size=4, address_range=8,
-              instructions=b"\x41\x0e\x10\x86\x02"):
-    """An FDE right after a CIE of cie_total bytes, padded to 8 bytes."""
-    body = struct.pack("<I", cie_total + 4)  # CIE pointer, relative to itself
-    # initial_location as an assembler would leave it, the parser zeroes it.
-    body += (-40).to_bytes(field_size, "little", signed=True)
-    body += address_range.to_bytes(field_size, "little")
-    body += b"\x00"  # augmentation data length
-    body += instructions
-    body += b"\x00" * (-(4 + len(body)) % 8)
-    return struct.pack("<I", len(body)) + body
+try:
+    from test.test_tools.test_trampoline_ehframe import fake_cie, fake_fde
+except (ImportError, unittest.SkipTest):
+    # Installed Python without the Tools directory.
+    fake_cie = fake_fde = None
 
 
 @unittest.skipIf(_trampoline_ehframe is None,
                  "Tools/jit/_trampoline_ehframe.py not found")
 class TestTrampolineEhframeScript(unittest.TestCase):
-    """Tests for Tools/jit/_trampoline_ehframe.py."""
+    """The generator against this build's trampoline object. The parsers are
+    tested with synthetic objects in test.test_tools.test_trampoline_ehframe."""
 
     ehframe = _trampoline_ehframe
-
-    def parse(self, data, text_size=8):
-        return self.ehframe.parse_ehframe(bytes(data), "<", text_size)
-
-    def test_parse(self):
-        """Both FDE pointer encodings: ELF sdata4 and Darwin absptr."""
-        cases = [(DW_EH_PE_PCREL_SDATA4, 4, 16, 8), (DW_EH_PE_PCREL_ABSPTR, 8, 30, 20)]
-        for encoding, field_size, ra_column, text_size in cases:
-            with self.subTest(encoding=hex(encoding)):
-                cie = _fake_cie(encoding=encoding, ra_column=ra_column)
-                fde = _fake_fde(len(cie), field_size=field_size,
-                                address_range=text_size)
-                result = self.parse(cie + fde, text_size)
-                self.assertEqual(result.field_size, field_size)
-                self.assertEqual(result.fde_pc_offset, len(cie) + 8)
-                self.assertEqual(result.fde_range_offset, len(cie) + 8 + field_size)
-                # Both patchable fields zeroed, everything else untouched.
-                expected = bytearray(cie + fde)
-                expected[len(cie) + 8:len(cie) + 8 + 2 * field_size] = bytes(2 * field_size)
-                self.assertEqual(result.data, bytes(expected))
-
-    def test_parse_rejects_malformed(self):
-        cie = _fake_cie()
-        fde = _fake_fde(len(cie))
-        cases = [
-            ("version", _fake_cie(version=3) + fde, 8),
-            ("augmentation", _fake_cie(augmentation=b"zPLR") + fde, 8),
-            ("encoding", _fake_cie(encoding=0x1A) + fde, 8),
-            ("exactly one FDE", cie + fde + fde, 8),
-            ("address_range", cie + fde, 12),
-            ("no FDE", cie, 8),
-        ]
-        for message, data, text_size in cases:
-            with self.subTest(message):
-                with self.assertRaisesRegex(ValueError, message):
-                    self.parse(data, text_size)
 
     def _build_trampoline_objects(self):
         """The object(s) the Makefile fed to the generator."""
@@ -924,61 +871,6 @@ class TestTrampolineEhframeScript(unittest.TestCase):
             path for path in glob.glob(
                 os.path.join(builddir, "Python", "asm_trampoline_*.o"))
             if "apple-darwin" not in os.path.basename(path))
-
-    def test_macho_thin_and_fat(self):
-        """Mach-O objects and fat containers are parsed with no external tools."""
-        E = self.ehframe
-
-        def macho(cputype, text, eh_frame):
-            # A minimal MH_OBJECT: one __TEXT segment with __text and
-            # __eh_frame sections, section data right after the load command.
-            segment_size = 72 + 2 * 80
-            text_offset = 32 + segment_size
-            eh_offset = text_offset + len(text)
-            sections = b""
-            for name, size, offset in (("__text", len(text), text_offset),
-                                       ("__eh_frame", len(eh_frame), eh_offset)):
-                sections += struct.pack("<16s16sQQIIIIIIII", name.encode(),
-                                        b"__TEXT", 0, size, offset,
-                                        0, 0, 0, 0, 0, 0, 0)
-            segment = struct.pack("<II16sQQQQIIII", E._LC_SEGMENT_64,
-                                  segment_size, b"__TEXT", 0,
-                                  len(text) + len(eh_frame), text_offset,
-                                  len(text) + len(eh_frame), 7, 5, 2, 0)
-            header = struct.pack("<IIIIIIII", E._MH_MAGIC_64, cputype, 0,
-                                 1, 1, segment_size, 0, 0)
-            return header + segment + sections + text + eh_frame
-
-        x86 = macho(E._CPU_TYPE_X86_64, b"\x55\xc3", b"x86 eh_frame")
-        arm = macho(E._CPU_TYPE_ARM64, b"\xc0\x03\x5f\xd6", b"arm64 eh_frame")
-        # The fat header and its fat_arch entries are big-endian.
-        blobs = [(E._CPU_TYPE_X86_64, x86), (E._CPU_TYPE_ARM64, arm)]
-        offset = 8 + 20 * len(blobs)
-        entries = b""
-        body = b""
-        for cputype, blob in blobs:
-            entries += struct.pack(">IIIII", cputype, 0, offset + len(body),
-                                   len(blob), 0)
-            body += blob
-        fat = struct.pack(">II", E._FAT_MAGIC, len(blobs)) + entries + body
-
-        with temp_dir() as tmp:
-            thin_path = os.path.join(tmp, "thin.o")
-            fat_path = os.path.join(tmp, "fat.o")
-            with open(thin_path, "wb") as f:
-                f.write(arm)
-            with open(fat_path, "wb") as f:
-                f.write(fat)
-            (thin,) = E.load_object(thin_path)
-            fat_slices = E.load_object(fat_path)
-
-        self.assertEqual(thin.arch_macro, "__aarch64__")
-        self.assertEqual(thin.sections[".text"], b"\xc0\x03\x5f\xd6")
-        self.assertEqual(thin.sections[".eh_frame"], b"arm64 eh_frame")
-        self.assertEqual([s.arch_macro for s in fat_slices],
-                         ["__x86_64__", "__aarch64__"])
-        self.assertEqual(fat_slices[0].sections[".eh_frame"], b"x86 eh_frame")
-        self.assertEqual(fat_slices[1].sections[".text"], b"\xc0\x03\x5f\xd6")
 
     def test_generated_source_is_current(self):
         """The C file in the build directory matches a fresh generation."""
@@ -998,15 +890,64 @@ class TestTrampolineEhframeScript(unittest.TestCase):
 
 
 class TestTrampolineEhframeData(unittest.TestCase):
-    """Structural checks on the generated trampoline_ehframe.c data."""
+    """Checks on the linked trampoline_ehframe.c data and the runtime patching."""
+
+    def setUp(self):
+        self.capi = import_helper.import_module("_testinternalcapi")
+        if not hasattr(self.capi, "test_trampoline_ehframe"):
+            self.skipTest("_testinternalcapi built without the perf trampoline")
 
     def test_generated_data_structure(self):
-        _testinternalcapi = import_helper.import_module("_testinternalcapi")
-        check = getattr(_testinternalcapi, "test_trampoline_ehframe", None)
-        if check is None:
-            self.skipTest("_testinternalcapi built without the perf trampoline")
         # Raises AssertionError describing the first failed check.
-        check()
+        self.capi.test_trampoline_ehframe()
+
+    @unittest.skipIf(fake_cie is None, "test_tools.test_trampoline_ehframe not importable")
+    def test_patch_both_widths(self):
+        patch = self.capi.patch_trampoline_ehframe
+        for encoding, field_size in ((DW_EH_PE_PCREL_SDATA4, 4),
+                                     (DW_EH_PE_PCREL_ABSPTR, 8)):
+            cie = fake_cie(encoding=encoding)
+            data = cie + fake_fde(len(cie), field_size=field_size)
+            pc = len(cie) + 8
+            rng = pc + field_size
+            for code_size in (1, 8, 9, 4096):
+                with self.subTest(field_size=field_size, code_size=code_size):
+                    out = patch(data, pc, rng, field_size, code_size, 1024)
+                    self.assertEqual(len(out), len(data))
+                    rounded = (code_size + 7) & ~7
+                    self.assertEqual(
+                        int.from_bytes(out[pc:rng], sys.byteorder, signed=True),
+                        -(rounded + pc))
+                    self.assertEqual(
+                        int.from_bytes(out[rng:rng + field_size], sys.byteorder),
+                        code_size)
+                    self.assertEqual(out[:pc] + out[rng + field_size:],
+                                     data[:pc] + data[rng + field_size:])
+
+    @unittest.skipIf(fake_cie is None, "test_tools.test_trampoline_ehframe not importable")
+    def test_patch_rejects_bad_input(self):
+        patch = self.capi.patch_trampoline_ehframe
+        cie = fake_cie()
+        data = cie + fake_fde(len(cie))
+        pc = len(cie) + 8
+        rng = pc + 4
+        # The largest code size whose offsets still fit a signed 32-bit field.
+        limit = 2**31 - 1 - 8 - len(data)
+        self.assertIsNotNone(patch(data, pc, rng, 4, limit, 1024))
+        cases = {
+            "empty data, as in the bootstrap stub": (b"", 8, 12, 4, 8, 1024),
+            "buffer too small": (data, pc, rng, 4, 8, len(data) - 1),
+            "bad field size": (data, pc, rng, 2, 8, 1024),
+            "fields not adjacent": (data, pc, rng + 4, 4, 8, 1024),
+            "fields past the end": (data, len(data) - 4, len(data), 4, 8, 1024),
+            "zero code size": (data, pc, rng, 4, 0, 1024),
+            "code size past INT32_MAX": (data, pc, rng, 4, limit + 1, 1024),
+        }
+        for name, args in cases.items():
+            with self.subTest(name):
+                self.assertIsNone(patch(*args))
+        with self.assertRaises(ValueError):
+            patch(data, -1, rng, 4, 8, 1024)
 
 
 if __name__ == "__main__":

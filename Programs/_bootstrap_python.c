@@ -1,9 +1,9 @@
 
 /* Frozen modules bootstrap
  *
- * Limited and restricted Python interpreter to run
- * "Tools/build/deepfreeze.py" on systems with no or older Python
- * interpreter.
+ * Limited and restricted Python interpreter to run the build's own
+ * scripts, Programs/_freeze_module.py and Tools/jit/_trampoline_ehframe.py,
+ * on systems with no or an older Python interpreter.
  */
 
 #include "Python.h"
@@ -49,8 +49,9 @@ const struct _frozen *PyImport_FrozenModules = NULL;
 #ifdef PY_HAVE_PERF_TRAMPOLINE
 /* Python/jit_unwind.o references the trampoline's unwind data, but
    trampoline_ehframe.c is generated later in the build, by _bootstrap_python,
-   so it cannot be linked in here. The perf trampoline is never activated
-   in this program. */
+   so it cannot be linked in here. The build never activates the perf
+   trampoline in this program, and with this stub activating it would
+   only write no unwind data. */
 const _PyTrampolineEhFrame _Py_trampoline_ehframe = {NULL, 0, 0, 0, 0};
 #endif
 

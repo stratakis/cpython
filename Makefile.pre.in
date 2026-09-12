@@ -810,6 +810,7 @@ check-clean-src:
 	    -f "$(srcdir)/$(BUILDPYTHON)" \
 	    -o -f "$(srcdir)/Programs/python.o" \
 	    -o -f "$(srcdir)/Python/frozen_modules/importlib._bootstrap.h" \
+	    -o -f "$(srcdir)/trampoline_ehframe.c" \
 	\); then \
 		echo "Error: The source directory ($(srcdir)) is not clean" ; \
 		echo "Building Python out of the source tree (in $(abs_builddir)) requires a clean source tree ($(abs_srcdir))" ; \
@@ -1720,7 +1721,7 @@ FROZEN_FILES_OUT = \
 		Python/frozen_modules/frozen_only.h
 # End FROZEN_FILES_OUT
 
-Programs/_freeze_module.o: Programs/_freeze_module.c Makefile
+Programs/_freeze_module.o: Programs/_freeze_module.c Makefile $(PYTHON_HEADERS)
 
 Modules/getpath_noop.o: $(srcdir)/Modules/getpath_noop.c Makefile
 

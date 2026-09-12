@@ -64,6 +64,16 @@ typedef struct {
 } _PyTrampolineEhFrame;
 
 PyAPI_DATA(const _PyTrampolineEhFrame) _Py_trampoline_ehframe;
+
+/* Copy eh's .eh_frame into buffer and fill in the FDE's initial_location
+ * and address_range for code_size bytes of code that perf maps right
+ * before the frame (see perf_jit_trampoline.c). Returns the number of
+ * bytes written, or 0 when the data is absent (the bootstrap programs'
+ * stub), inconsistent, larger than the buffer, or when code_size does not
+ * fit the offsets. Export for '_testinternalcapi'. */
+PyAPI_FUNC(size_t) _PyJitUnwind_PatchTrampolineEhFrame(
+    const _PyTrampolineEhFrame *eh, uint8_t *buffer, size_t buffer_size,
+    size_t code_size);
 #endif
 
 /* Return the size of the generated .eh_frame data for the given encoding. */
